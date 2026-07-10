@@ -9,38 +9,359 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkflowsRouteImport } from './routes/workflows'
+import { Route as StockVerificationRouteImport } from './routes/stock-verification'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RolesRouteImport } from './routes/roles'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ProductsRouteImport } from './routes/products'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as FaqRouteImport } from './routes/faq'
+import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
+import { Route as OrdersIndexRouteImport } from './routes/orders.index'
+import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
+import { Route as ApprovalsIndexRouteImport } from './routes/approvals.index'
+import { Route as StockRequestsNewRouteImport } from './routes/stock-requests.new'
+import { Route as OrdersNewRouteImport } from './routes/orders.new'
+import { Route as OrdersIdRouteImport } from './routes/orders.$id'
+import { Route as InventorySkuRouteImport } from './routes/inventory.$sku'
+import { Route as ApprovalsIdRouteImport } from './routes/approvals.$id'
 
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StockVerificationRoute = StockVerificationRouteImport.update({
+  id: '/stock-verification',
+  path: '/stock-verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RolesRoute = RolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLogsRoute = AuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StockRequestsIndexRoute = StockRequestsIndexRouteImport.update({
+  id: '/stock-requests/',
+  path: '/stock-requests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersIndexRoute = OrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryIndexRoute = InventoryIndexRouteImport.update({
+  id: '/inventory/',
+  path: '/inventory/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalsIndexRoute = ApprovalsIndexRouteImport.update({
+  id: '/approvals/',
+  path: '/approvals/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StockRequestsNewRoute = StockRequestsNewRouteImport.update({
+  id: '/stock-requests/new',
+  path: '/stock-requests/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersNewRoute = OrdersNewRouteImport.update({
+  id: '/orders/new',
+  path: '/orders/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersIdRoute = OrdersIdRouteImport.update({
+  id: '/orders/$id',
+  path: '/orders/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventorySkuRoute = InventorySkuRouteImport.update({
+  id: '/inventory/$sku',
+  path: '/inventory/$sku',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalsIdRoute = ApprovalsIdRouteImport.update({
+  id: '/approvals/$id',
+  path: '/approvals/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/customers': typeof CustomersRoute
+  '/faq': typeof FaqRoute
+  '/notifications': typeof NotificationsRoute
+  '/products': typeof ProductsRoute
+  '/reports': typeof ReportsRoute
+  '/roles': typeof RolesRoute
+  '/settings': typeof SettingsRoute
+  '/stock-verification': typeof StockVerificationRoute
+  '/workflows': typeof WorkflowsRoute
+  '/approvals/$id': typeof ApprovalsIdRoute
+  '/inventory/$sku': typeof InventorySkuRoute
+  '/orders/$id': typeof OrdersIdRoute
+  '/orders/new': typeof OrdersNewRoute
+  '/stock-requests/new': typeof StockRequestsNewRoute
+  '/approvals/': typeof ApprovalsIndexRoute
+  '/inventory/': typeof InventoryIndexRoute
+  '/orders/': typeof OrdersIndexRoute
+  '/stock-requests/': typeof StockRequestsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/customers': typeof CustomersRoute
+  '/faq': typeof FaqRoute
+  '/notifications': typeof NotificationsRoute
+  '/products': typeof ProductsRoute
+  '/reports': typeof ReportsRoute
+  '/roles': typeof RolesRoute
+  '/settings': typeof SettingsRoute
+  '/stock-verification': typeof StockVerificationRoute
+  '/workflows': typeof WorkflowsRoute
+  '/approvals/$id': typeof ApprovalsIdRoute
+  '/inventory/$sku': typeof InventorySkuRoute
+  '/orders/$id': typeof OrdersIdRoute
+  '/orders/new': typeof OrdersNewRoute
+  '/stock-requests/new': typeof StockRequestsNewRoute
+  '/approvals': typeof ApprovalsIndexRoute
+  '/inventory': typeof InventoryIndexRoute
+  '/orders': typeof OrdersIndexRoute
+  '/stock-requests': typeof StockRequestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/customers': typeof CustomersRoute
+  '/faq': typeof FaqRoute
+  '/notifications': typeof NotificationsRoute
+  '/products': typeof ProductsRoute
+  '/reports': typeof ReportsRoute
+  '/roles': typeof RolesRoute
+  '/settings': typeof SettingsRoute
+  '/stock-verification': typeof StockVerificationRoute
+  '/workflows': typeof WorkflowsRoute
+  '/approvals/$id': typeof ApprovalsIdRoute
+  '/inventory/$sku': typeof InventorySkuRoute
+  '/orders/$id': typeof OrdersIdRoute
+  '/orders/new': typeof OrdersNewRoute
+  '/stock-requests/new': typeof StockRequestsNewRoute
+  '/approvals/': typeof ApprovalsIndexRoute
+  '/inventory/': typeof InventoryIndexRoute
+  '/orders/': typeof OrdersIndexRoute
+  '/stock-requests/': typeof StockRequestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/audit-logs'
+    | '/customers'
+    | '/faq'
+    | '/notifications'
+    | '/products'
+    | '/reports'
+    | '/roles'
+    | '/settings'
+    | '/stock-verification'
+    | '/workflows'
+    | '/approvals/$id'
+    | '/inventory/$sku'
+    | '/orders/$id'
+    | '/orders/new'
+    | '/stock-requests/new'
+    | '/approvals/'
+    | '/inventory/'
+    | '/orders/'
+    | '/stock-requests/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/audit-logs'
+    | '/customers'
+    | '/faq'
+    | '/notifications'
+    | '/products'
+    | '/reports'
+    | '/roles'
+    | '/settings'
+    | '/stock-verification'
+    | '/workflows'
+    | '/approvals/$id'
+    | '/inventory/$sku'
+    | '/orders/$id'
+    | '/orders/new'
+    | '/stock-requests/new'
+    | '/approvals'
+    | '/inventory'
+    | '/orders'
+    | '/stock-requests'
+  id:
+    | '__root__'
+    | '/'
+    | '/audit-logs'
+    | '/customers'
+    | '/faq'
+    | '/notifications'
+    | '/products'
+    | '/reports'
+    | '/roles'
+    | '/settings'
+    | '/stock-verification'
+    | '/workflows'
+    | '/approvals/$id'
+    | '/inventory/$sku'
+    | '/orders/$id'
+    | '/orders/new'
+    | '/stock-requests/new'
+    | '/approvals/'
+    | '/inventory/'
+    | '/orders/'
+    | '/stock-requests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuditLogsRoute: typeof AuditLogsRoute
+  CustomersRoute: typeof CustomersRoute
+  FaqRoute: typeof FaqRoute
+  NotificationsRoute: typeof NotificationsRoute
+  ProductsRoute: typeof ProductsRoute
+  ReportsRoute: typeof ReportsRoute
+  RolesRoute: typeof RolesRoute
+  SettingsRoute: typeof SettingsRoute
+  StockVerificationRoute: typeof StockVerificationRoute
+  WorkflowsRoute: typeof WorkflowsRoute
+  ApprovalsIdRoute: typeof ApprovalsIdRoute
+  InventorySkuRoute: typeof InventorySkuRoute
+  OrdersIdRoute: typeof OrdersIdRoute
+  OrdersNewRoute: typeof OrdersNewRoute
+  StockRequestsNewRoute: typeof StockRequestsNewRoute
+  ApprovalsIndexRoute: typeof ApprovalsIndexRoute
+  InventoryIndexRoute: typeof InventoryIndexRoute
+  OrdersIndexRoute: typeof OrdersIndexRoute
+  StockRequestsIndexRoute: typeof StockRequestsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workflows': {
+      id: '/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stock-verification': {
+      id: '/stock-verification'
+      path: '/stock-verification'
+      fullPath: '/stock-verification'
+      preLoaderRoute: typeof StockVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roles': {
+      id: '/roles'
+      path: '/roles'
+      fullPath: '/roles'
+      preLoaderRoute: typeof RolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit-logs': {
+      id: '/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AuditLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +369,94 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stock-requests/': {
+      id: '/stock-requests/'
+      path: '/stock-requests'
+      fullPath: '/stock-requests/'
+      preLoaderRoute: typeof StockRequestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders/': {
+      id: '/orders/'
+      path: '/orders'
+      fullPath: '/orders/'
+      preLoaderRoute: typeof OrdersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/': {
+      id: '/inventory/'
+      path: '/inventory'
+      fullPath: '/inventory/'
+      preLoaderRoute: typeof InventoryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approvals/': {
+      id: '/approvals/'
+      path: '/approvals'
+      fullPath: '/approvals/'
+      preLoaderRoute: typeof ApprovalsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stock-requests/new': {
+      id: '/stock-requests/new'
+      path: '/stock-requests/new'
+      fullPath: '/stock-requests/new'
+      preLoaderRoute: typeof StockRequestsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders/new': {
+      id: '/orders/new'
+      path: '/orders/new'
+      fullPath: '/orders/new'
+      preLoaderRoute: typeof OrdersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders/$id': {
+      id: '/orders/$id'
+      path: '/orders/$id'
+      fullPath: '/orders/$id'
+      preLoaderRoute: typeof OrdersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/$sku': {
+      id: '/inventory/$sku'
+      path: '/inventory/$sku'
+      fullPath: '/inventory/$sku'
+      preLoaderRoute: typeof InventorySkuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approvals/$id': {
+      id: '/approvals/$id'
+      path: '/approvals/$id'
+      fullPath: '/approvals/$id'
+      preLoaderRoute: typeof ApprovalsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuditLogsRoute: AuditLogsRoute,
+  CustomersRoute: CustomersRoute,
+  FaqRoute: FaqRoute,
+  NotificationsRoute: NotificationsRoute,
+  ProductsRoute: ProductsRoute,
+  ReportsRoute: ReportsRoute,
+  RolesRoute: RolesRoute,
+  SettingsRoute: SettingsRoute,
+  StockVerificationRoute: StockVerificationRoute,
+  WorkflowsRoute: WorkflowsRoute,
+  ApprovalsIdRoute: ApprovalsIdRoute,
+  InventorySkuRoute: InventorySkuRoute,
+  OrdersIdRoute: OrdersIdRoute,
+  OrdersNewRoute: OrdersNewRoute,
+  StockRequestsNewRoute: StockRequestsNewRoute,
+  ApprovalsIndexRoute: ApprovalsIndexRoute,
+  InventoryIndexRoute: InventoryIndexRoute,
+  OrdersIndexRoute: OrdersIndexRoute,
+  StockRequestsIndexRoute: StockRequestsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
