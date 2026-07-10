@@ -14,6 +14,7 @@ import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
 import { Route as OrdersNewRouteImport } from './routes/orders.new'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
+import { Route as InventorySkuRouteImport } from './routes/inventory.$sku'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,9 +41,15 @@ const OrdersIdRoute = OrdersIdRouteImport.update({
   path: '/orders/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InventorySkuRoute = InventorySkuRouteImport.update({
+  id: '/inventory/$sku',
+  path: '/inventory/$sku',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
   '/orders/new': typeof OrdersNewRoute
   '/inventory/': typeof InventoryIndexRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
   '/orders/new': typeof OrdersNewRoute
   '/inventory': typeof InventoryIndexRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
   '/orders/new': typeof OrdersNewRoute
   '/inventory/': typeof InventoryIndexRoute
@@ -65,12 +74,25 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/orders/$id' | '/orders/new' | '/inventory/' | '/orders/'
+  fullPaths:
+    | '/'
+    | '/inventory/$sku'
+    | '/orders/$id'
+    | '/orders/new'
+    | '/inventory/'
+    | '/orders/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/orders/$id' | '/orders/new' | '/inventory' | '/orders'
+  to:
+    | '/'
+    | '/inventory/$sku'
+    | '/orders/$id'
+    | '/orders/new'
+    | '/inventory'
+    | '/orders'
   id:
     | '__root__'
     | '/'
+    | '/inventory/$sku'
     | '/orders/$id'
     | '/orders/new'
     | '/inventory/'
@@ -79,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  InventorySkuRoute: typeof InventorySkuRoute
   OrdersIdRoute: typeof OrdersIdRoute
   OrdersNewRoute: typeof OrdersNewRoute
   InventoryIndexRoute: typeof InventoryIndexRoute
@@ -122,11 +145,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrdersIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inventory/$sku': {
+      id: '/inventory/$sku'
+      path: '/inventory/$sku'
+      fullPath: '/inventory/$sku'
+      preLoaderRoute: typeof InventorySkuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  InventorySkuRoute: InventorySkuRoute,
   OrdersIdRoute: OrdersIdRoute,
   OrdersNewRoute: OrdersNewRoute,
   InventoryIndexRoute: InventoryIndexRoute,
