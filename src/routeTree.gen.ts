@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
+import { Route as ApprovalsIndexRouteImport } from './routes/approvals.index'
 import { Route as StockRequestsNewRouteImport } from './routes/stock-requests.new'
 import { Route as OrdersNewRouteImport } from './routes/orders.new'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
@@ -36,6 +37,11 @@ const OrdersIndexRoute = OrdersIndexRouteImport.update({
 const InventoryIndexRoute = InventoryIndexRouteImport.update({
   id: '/inventory/',
   path: '/inventory/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalsIndexRoute = ApprovalsIndexRouteImport.update({
+  id: '/approvals/',
+  path: '/approvals/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StockRequestsNewRoute = StockRequestsNewRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/orders/$id': typeof OrdersIdRoute
   '/orders/new': typeof OrdersNewRoute
   '/stock-requests/new': typeof StockRequestsNewRoute
+  '/approvals/': typeof ApprovalsIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/orders/$id': typeof OrdersIdRoute
   '/orders/new': typeof OrdersNewRoute
   '/stock-requests/new': typeof StockRequestsNewRoute
+  '/approvals': typeof ApprovalsIndexRoute
   '/inventory': typeof InventoryIndexRoute
   '/orders': typeof OrdersIndexRoute
   '/stock-requests': typeof StockRequestsIndexRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/orders/$id': typeof OrdersIdRoute
   '/orders/new': typeof OrdersNewRoute
   '/stock-requests/new': typeof StockRequestsNewRoute
+  '/approvals/': typeof ApprovalsIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/orders/$id'
     | '/orders/new'
     | '/stock-requests/new'
+    | '/approvals/'
     | '/inventory/'
     | '/orders/'
     | '/stock-requests/'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/orders/$id'
     | '/orders/new'
     | '/stock-requests/new'
+    | '/approvals'
     | '/inventory'
     | '/orders'
     | '/stock-requests'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/orders/$id'
     | '/orders/new'
     | '/stock-requests/new'
+    | '/approvals/'
     | '/inventory/'
     | '/orders/'
     | '/stock-requests/'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   OrdersIdRoute: typeof OrdersIdRoute
   OrdersNewRoute: typeof OrdersNewRoute
   StockRequestsNewRoute: typeof StockRequestsNewRoute
+  ApprovalsIndexRoute: typeof ApprovalsIndexRoute
   InventoryIndexRoute: typeof InventoryIndexRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
   StockRequestsIndexRoute: typeof StockRequestsIndexRoute
@@ -162,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory'
       fullPath: '/inventory/'
       preLoaderRoute: typeof InventoryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approvals/': {
+      id: '/approvals/'
+      path: '/approvals'
+      fullPath: '/approvals/'
+      preLoaderRoute: typeof ApprovalsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/stock-requests/new': {
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrdersIdRoute: OrdersIdRoute,
   OrdersNewRoute: OrdersNewRoute,
   StockRequestsNewRoute: StockRequestsNewRoute,
+  ApprovalsIndexRoute: ApprovalsIndexRoute,
   InventoryIndexRoute: InventoryIndexRoute,
   OrdersIndexRoute: OrdersIndexRoute,
   StockRequestsIndexRoute: StockRequestsIndexRoute,
