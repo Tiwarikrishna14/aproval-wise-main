@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StockVerificationRouteImport } from './routes/stock-verification'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
@@ -20,6 +21,11 @@ import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as InventorySkuRouteImport } from './routes/inventory.$sku'
 import { Route as ApprovalsIdRouteImport } from './routes/approvals.$id'
 
+const StockVerificationRoute = StockVerificationRouteImport.update({
+  id: '/stock-verification',
+  path: '/stock-verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -73,6 +79,7 @@ const ApprovalsIdRoute = ApprovalsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/stock-verification': typeof StockVerificationRoute
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/stock-verification': typeof StockVerificationRoute
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -98,6 +106,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/stock-verification': typeof StockVerificationRoute
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/stock-verification'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/stock-verification'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/stock-verification'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -149,6 +161,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  StockVerificationRoute: typeof StockVerificationRoute
   ApprovalsIdRoute: typeof ApprovalsIdRoute
   InventorySkuRoute: typeof InventorySkuRoute
   OrdersIdRoute: typeof OrdersIdRoute
@@ -162,6 +175,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/stock-verification': {
+      id: '/stock-verification'
+      path: '/stock-verification'
+      fullPath: '/stock-verification'
+      preLoaderRoute: typeof StockVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -237,6 +257,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  StockVerificationRoute: StockVerificationRoute,
   ApprovalsIdRoute: ApprovalsIdRoute,
   InventorySkuRoute: InventorySkuRoute,
   OrdersIdRoute: OrdersIdRoute,
