@@ -9,7 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkflowsRouteImport } from './routes/workflows'
 import { Route as StockVerificationRouteImport } from './routes/stock-verification'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RolesRouteImport } from './routes/roles'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ProductsRouteImport } from './routes/products'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as FaqRouteImport } from './routes/faq'
+import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
@@ -21,9 +30,54 @@ import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as InventorySkuRouteImport } from './routes/inventory.$sku'
 import { Route as ApprovalsIdRouteImport } from './routes/approvals.$id'
 
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StockVerificationRoute = StockVerificationRouteImport.update({
   id: '/stock-verification',
   path: '/stock-verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RolesRoute = RolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLogsRoute = AuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -79,7 +133,16 @@ const ApprovalsIdRoute = ApprovalsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/customers': typeof CustomersRoute
+  '/faq': typeof FaqRoute
+  '/notifications': typeof NotificationsRoute
+  '/products': typeof ProductsRoute
+  '/reports': typeof ReportsRoute
+  '/roles': typeof RolesRoute
+  '/settings': typeof SettingsRoute
   '/stock-verification': typeof StockVerificationRoute
+  '/workflows': typeof WorkflowsRoute
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -92,7 +155,16 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/customers': typeof CustomersRoute
+  '/faq': typeof FaqRoute
+  '/notifications': typeof NotificationsRoute
+  '/products': typeof ProductsRoute
+  '/reports': typeof ReportsRoute
+  '/roles': typeof RolesRoute
+  '/settings': typeof SettingsRoute
   '/stock-verification': typeof StockVerificationRoute
+  '/workflows': typeof WorkflowsRoute
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -106,7 +178,16 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/audit-logs': typeof AuditLogsRoute
+  '/customers': typeof CustomersRoute
+  '/faq': typeof FaqRoute
+  '/notifications': typeof NotificationsRoute
+  '/products': typeof ProductsRoute
+  '/reports': typeof ReportsRoute
+  '/roles': typeof RolesRoute
+  '/settings': typeof SettingsRoute
   '/stock-verification': typeof StockVerificationRoute
+  '/workflows': typeof WorkflowsRoute
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -121,7 +202,16 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/audit-logs'
+    | '/customers'
+    | '/faq'
+    | '/notifications'
+    | '/products'
+    | '/reports'
+    | '/roles'
+    | '/settings'
     | '/stock-verification'
+    | '/workflows'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -134,7 +224,16 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/audit-logs'
+    | '/customers'
+    | '/faq'
+    | '/notifications'
+    | '/products'
+    | '/reports'
+    | '/roles'
+    | '/settings'
     | '/stock-verification'
+    | '/workflows'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -147,7 +246,16 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/audit-logs'
+    | '/customers'
+    | '/faq'
+    | '/notifications'
+    | '/products'
+    | '/reports'
+    | '/roles'
+    | '/settings'
     | '/stock-verification'
+    | '/workflows'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -161,7 +269,16 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuditLogsRoute: typeof AuditLogsRoute
+  CustomersRoute: typeof CustomersRoute
+  FaqRoute: typeof FaqRoute
+  NotificationsRoute: typeof NotificationsRoute
+  ProductsRoute: typeof ProductsRoute
+  ReportsRoute: typeof ReportsRoute
+  RolesRoute: typeof RolesRoute
+  SettingsRoute: typeof SettingsRoute
   StockVerificationRoute: typeof StockVerificationRoute
+  WorkflowsRoute: typeof WorkflowsRoute
   ApprovalsIdRoute: typeof ApprovalsIdRoute
   InventorySkuRoute: typeof InventorySkuRoute
   OrdersIdRoute: typeof OrdersIdRoute
@@ -175,11 +292,74 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workflows': {
+      id: '/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stock-verification': {
       id: '/stock-verification'
       path: '/stock-verification'
       fullPath: '/stock-verification'
       preLoaderRoute: typeof StockVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roles': {
+      id: '/roles'
+      path: '/roles'
+      fullPath: '/roles'
+      preLoaderRoute: typeof RolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit-logs': {
+      id: '/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AuditLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -257,7 +437,16 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuditLogsRoute: AuditLogsRoute,
+  CustomersRoute: CustomersRoute,
+  FaqRoute: FaqRoute,
+  NotificationsRoute: NotificationsRoute,
+  ProductsRoute: ProductsRoute,
+  ReportsRoute: ReportsRoute,
+  RolesRoute: RolesRoute,
+  SettingsRoute: SettingsRoute,
   StockVerificationRoute: StockVerificationRoute,
+  WorkflowsRoute: WorkflowsRoute,
   ApprovalsIdRoute: ApprovalsIdRoute,
   InventorySkuRoute: InventorySkuRoute,
   OrdersIdRoute: OrdersIdRoute,
