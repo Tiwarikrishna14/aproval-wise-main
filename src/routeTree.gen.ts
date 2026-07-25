@@ -31,6 +31,11 @@ import { Route as OrdersNewRouteImport } from './routes/orders.new'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as InventorySkuRouteImport } from './routes/inventory.$sku'
 import { Route as ApprovalsIdRouteImport } from './routes/approvals.$id'
+import { Route as ApiOrdersRouteImport } from './routes/api.orders'
+import { Route as ApiOrdersIdRouteImport } from './routes/api.orders.$id'
+import { Route as ApiAuthMeRouteImport } from './routes/api.auth.me'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api.auth.logout'
+import { Route as ApiAuthLoginRouteImport } from './routes/api.auth.login'
 
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
@@ -142,6 +147,31 @@ const ApprovalsIdRoute = ApprovalsIdRouteImport.update({
   path: '/approvals/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOrdersRoute = ApiOrdersRouteImport.update({
+  id: '/api/orders',
+  path: '/api/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrdersIdRoute = ApiOrdersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiOrdersRoute,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -157,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/stock-verification': typeof StockVerificationRoute
   '/users': typeof UsersRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/orders': typeof ApiOrdersRouteWithChildren
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -166,6 +197,10 @@ export interface FileRoutesByFullPath {
   '/inventory/': typeof InventoryIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/orders/$id': typeof ApiOrdersIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -181,6 +216,7 @@ export interface FileRoutesByTo {
   '/stock-verification': typeof StockVerificationRoute
   '/users': typeof UsersRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/orders': typeof ApiOrdersRouteWithChildren
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -190,6 +226,10 @@ export interface FileRoutesByTo {
   '/inventory': typeof InventoryIndexRoute
   '/orders': typeof OrdersIndexRoute
   '/stock-requests': typeof StockRequestsIndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/orders/$id': typeof ApiOrdersIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -206,6 +246,7 @@ export interface FileRoutesById {
   '/stock-verification': typeof StockVerificationRoute
   '/users': typeof UsersRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/orders': typeof ApiOrdersRouteWithChildren
   '/approvals/$id': typeof ApprovalsIdRoute
   '/inventory/$sku': typeof InventorySkuRoute
   '/orders/$id': typeof OrdersIdRoute
@@ -215,6 +256,10 @@ export interface FileRoutesById {
   '/inventory/': typeof InventoryIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/orders/$id': typeof ApiOrdersIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -232,6 +277,7 @@ export interface FileRouteTypes {
     | '/stock-verification'
     | '/users'
     | '/workflows'
+    | '/api/orders'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -241,6 +287,10 @@ export interface FileRouteTypes {
     | '/inventory/'
     | '/orders/'
     | '/stock-requests/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/orders/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -256,6 +306,7 @@ export interface FileRouteTypes {
     | '/stock-verification'
     | '/users'
     | '/workflows'
+    | '/api/orders'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -265,6 +316,10 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/orders'
     | '/stock-requests'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/orders/$id'
   id:
     | '__root__'
     | '/'
@@ -280,6 +335,7 @@ export interface FileRouteTypes {
     | '/stock-verification'
     | '/users'
     | '/workflows'
+    | '/api/orders'
     | '/approvals/$id'
     | '/inventory/$sku'
     | '/orders/$id'
@@ -289,6 +345,10 @@ export interface FileRouteTypes {
     | '/inventory/'
     | '/orders/'
     | '/stock-requests/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/orders/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -305,6 +365,7 @@ export interface RootRouteChildren {
   StockVerificationRoute: typeof StockVerificationRoute
   UsersRoute: typeof UsersRoute
   WorkflowsRoute: typeof WorkflowsRoute
+  ApiOrdersRoute: typeof ApiOrdersRouteWithChildren
   ApprovalsIdRoute: typeof ApprovalsIdRoute
   InventorySkuRoute: typeof InventorySkuRoute
   OrdersIdRoute: typeof OrdersIdRoute
@@ -314,6 +375,9 @@ export interface RootRouteChildren {
   InventoryIndexRoute: typeof InventoryIndexRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
   StockRequestsIndexRoute: typeof StockRequestsIndexRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -472,8 +536,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApprovalsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders': {
+      id: '/api/orders'
+      path: '/api/orders'
+      fullPath: '/api/orders'
+      preLoaderRoute: typeof ApiOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orders/$id': {
+      id: '/api/orders/$id'
+      path: '/$id'
+      fullPath: '/api/orders/$id'
+      preLoaderRoute: typeof ApiOrdersIdRouteImport
+      parentRoute: typeof ApiOrdersRoute
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface ApiOrdersRouteChildren {
+  ApiOrdersIdRoute: typeof ApiOrdersIdRoute
+}
+
+const ApiOrdersRouteChildren: ApiOrdersRouteChildren = {
+  ApiOrdersIdRoute: ApiOrdersIdRoute,
+}
+
+const ApiOrdersRouteWithChildren = ApiOrdersRoute._addFileChildren(
+  ApiOrdersRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -489,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   StockVerificationRoute: StockVerificationRoute,
   UsersRoute: UsersRoute,
   WorkflowsRoute: WorkflowsRoute,
+  ApiOrdersRoute: ApiOrdersRouteWithChildren,
   ApprovalsIdRoute: ApprovalsIdRoute,
   InventorySkuRoute: InventorySkuRoute,
   OrdersIdRoute: OrdersIdRoute,
@@ -498,6 +610,9 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryIndexRoute: InventoryIndexRoute,
   OrdersIndexRoute: OrdersIndexRoute,
   StockRequestsIndexRoute: StockRequestsIndexRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
