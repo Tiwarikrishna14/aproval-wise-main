@@ -21,11 +21,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission, isSuperAdmin } from "@/lib/permissions";
 import {
+  branchRecords,
+  branchesApi,
+  businessCustomersApi,
   organizationsApi,
   rolesApi,
   usersApi,
   type CreateUserRequest,
   type OrganizationResponse,
+  type BranchResponse,
   type UpdateUserRequest,
   type UserResponse,
 } from "@/services/admin-api.service";
@@ -54,8 +58,19 @@ const userRolesQueryOptions = {
   refetchOnWindowFocus: false,
 };
 
+const userBranchesQueryOptions = {
+  queryKey: ["admin", "users", "branches"] as const,
+    queryFn: async () => branchRecords((await branchesApi.list({ size: 100 })).data),
+  staleTime: 60 * 1000,
+  retry: false,
+  refetchOnWindowFocus: false,
+};
+
 type UserForm = {
   organizationId: string;
+  userType: "EMPLOYEE" | "CUSTOMER";
+  branchId: string;
+  businessCustomerId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -73,6 +88,9 @@ type EditUserForm = {
 
 const emptyForm: UserForm = {
   organizationId: "",
+  userType: "EMPLOYEE",
+  branchId: "",
+  businessCustomerId: "",
   firstName: "",
   lastName: "",
   email: "",
@@ -101,6 +119,10 @@ function organizationNameById(organizations: OrganizationResponse[]) {
   return new Map(organizations.map((organization) => [organization.id, organization.name]));
 }
 
+function branchNameById(branches: BranchResponse[]) {
+  return new Map(branches.map((branch) => [branch.id, branch.name]));
+}
+
 function UsersPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -112,11 +134,26 @@ function UsersPage() {
   const hasCreateAccess = hasPermission(user, "USER_CREATE");
   const hasUpdateAccess = hasPermission(user, "USER_UPDATE");
   const hasOrganizationViewAccess = hasPermission(user, "ORGANIZATION_VIEW");
-  const hasRoleViewAccess = isSuperAdmin(user) && hasPermission(user, "ROLE_VIEW");
+  const hasRoleViewAccess = hasPermission(user, "ROLE_VIEW");
   const usersQuery = useQuery({ ...usersQueryOptions, enabled: hasViewAccess });
   const organizationsQuery = useQuery({
     ...userOrganizationsQueryOptions,
     enabled: hasViewAccess && hasOrganizationViewAccess,
+  });
+  const branchesQuery = useQuery({
+    ...userBranchesQueryOptions,
+    queryKey: [...userBranchesQueryOptions.queryKey, form.organizationId],
+    queryFn: async () =>
+      branchRecords((await branchesApi.list({ size: 100, organizationId: form.organizationId || undefined })).data),
+    enabled: hasViewAccess,
+  });
+  const businessCustomersQuery = useQuery({
+    queryKey: ["admin", "users", "business-customers", form.organizationId],
+    queryFn: async () =>
+      (await businessCustomersApi.list({ organizationId: form.organizationId || undefined })).data,
+    enabled: hasCreateAccess && form.userType === "CUSTOMER",
+    staleTime: 60 * 1000,
+    retry: false,
   });
   const rolesQuery = useQuery({
     ...userRolesQueryOptions,
@@ -124,10 +161,19 @@ function UsersPage() {
   });
   const users = usersQuery.data ?? [];
   const organizations = organizationsQuery.data ?? [];
+  const branches = branchRecords(branchesQuery.data);
+  const businessCustomers = Array.isArray(businessCustomersQuery.data)
+    ? businessCustomersQuery.data
+    : businessCustomersQuery.data?.content ?? [];
   const roles = rolesQuery.data ?? [];
+  const availableRoles = roles.filter((role) => {
+    const isCustomerRole = role.name === "CUSTOMER" || role.name === "CUSTOMER_ADMIN";
+    return form.userType === "CUSTOMER" ? isCustomerRole : !isCustomerRole;
+  });
   const organizationsById = organizationNameById(organizations);
-  const isLoading = usersQuery.isLoading || organizationsQuery.isLoading || rolesQuery.isLoading;
-  const isError = usersQuery.isError || organizationsQuery.isError || rolesQuery.isError;
+  const branchesById = branchNameById(branches);
+  const isLoading = usersQuery.isLoading || organizationsQuery.isLoading || branchesQuery.isLoading || rolesQuery.isLoading;
+  const isError = usersQuery.isError || organizationsQuery.isError || branchesQuery.isError || rolesQuery.isError;
   const tableHeaders = hasRoleViewAccess
     ? ["User", "Email", "Organization", "Status", "Roles", "Created", ""]
     : ["User", "Email", "Organization", "Status", "Created", ""];
@@ -213,6 +259,12 @@ function UsersPage() {
 
     const payload: CreateUserRequest = {
       organizationId: form.organizationId || undefined,
+      branchId:
+        form.userType === "CUSTOMER"
+          ? businessCustomers.find((customer) => customer.id === form.businessCustomerId)?.branchId
+          : undefined,
+      businessCustomerId:
+        form.userType === "CUSTOMER" ? form.businessCustomerId || undefined : undefined,
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       email: form.email.trim(),
@@ -292,7 +344,17 @@ function UsersPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{record.email}</td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {organizationsById.get(record.organizationId) || record.organizationId}
+                      <span>{organizationsById.get(record.organizationId) || record.organizationId}</span>
+                      {record.branchId ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {branchesById.get(record.branchId) || record.branchId}
+                        </span>
+                      ) : null}
+                      {record.businessCustomerId ? (
+                        <span className="block text-xs text-muted-foreground">
+                          Customer: {record.businessCustomerId}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={statusForBadge(record.status)} />
@@ -348,7 +410,12 @@ function UsersPage() {
                   id="user-organization"
                   className="input"
                   value={form.organizationId}
-                  onChange={(event) => updateField("organizationId", event.target.value)}
+                  onChange={(event) => {
+                    updateField("organizationId", event.target.value);
+                    updateField("branchId", "");
+                    updateField("businessCustomerId", "");
+                    setForm((current) => ({ ...current, roleIds: [] }));
+                  }}
                 >
                   <option value="">Use backend default</option>
                   {organizations.map((organization) => (
@@ -358,6 +425,42 @@ function UsersPage() {
                   ))}
                 </select>
               </Field>
+              <Field label="User Type" htmlFor="user-type">
+                <select
+                  id="user-type"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.userType}
+                  onChange={(event) => {
+                    const userType = event.target.value as UserForm["userType"];
+                    setForm((current) => ({
+                      ...current,
+                      userType,
+                      businessCustomerId: "",
+                      roleIds: [],
+                    }));
+                  }}
+                >
+                  <option value="EMPLOYEE">Employee</option>
+                  <option value="CUSTOMER">Customer</option>
+                </select>
+              </Field>
+              {form.userType === "CUSTOMER" ? <Field label="Business Customer" htmlFor="user-business-customer">
+                <select
+                  id="user-business-customer"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.businessCustomerId}
+                  onChange={(event) => updateField("businessCustomerId", event.target.value)}
+                  disabled={businessCustomersQuery.isLoading}
+                  required
+                >
+                  <option value="">Select customer</option>
+                  {businessCustomers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name} ({customer.customerCode})
+                    </option>
+                  ))}
+                </select>
+              </Field> : null}
               <Field label="Email" htmlFor="user-email">
                 <Input
                   id="user-email"
@@ -407,12 +510,12 @@ function UsersPage() {
               <div className="space-y-2">
                 <Label>Roles</Label>
                 <div className="grid max-h-48 gap-2 overflow-y-auto rounded-md border border-border p-3 sm:grid-cols-2">
-                  {roles.length === 0 ? (
+                  {availableRoles.length === 0 ? (
                     <div className="text-sm text-muted-foreground">
                       No roles returned by backend.
                     </div>
                   ) : (
-                    roles.map((role) => (
+                    availableRoles.map((role) => (
                       <label
                         key={role.id}
                         className="flex items-center gap-2 rounded-md border border-border p-2.5 text-sm"

@@ -16,10 +16,12 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RolesRouteImport } from './routes/roles'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ProductsRouteImport } from './routes/products'
+import { Route as OrganizationsRouteImport } from './routes/organizations'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as BranchesRouteImport } from './routes/branches'
 import { Route as AuditLogsRouteImport } from './routes/audit-logs'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
@@ -72,6 +74,11 @@ const ProductsRoute = ProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizationsRoute = OrganizationsRouteImport.update({
+  id: '/organizations',
+  path: '/organizations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -90,6 +97,11 @@ const FaqRoute = FaqRouteImport.update({
 const CustomersRoute = CustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BranchesRoute = BranchesRouteImport.update({
+  id: '/branches',
+  path: '/branches',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuditLogsRoute = AuditLogsRouteImport.update({
@@ -176,10 +188,12 @@ const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/audit-logs': typeof AuditLogsRoute
+  '/branches': typeof BranchesRoute
   '/customers': typeof CustomersRoute
   '/faq': typeof FaqRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/organizations': typeof OrganizationsRoute
   '/products': typeof ProductsRoute
   '/reports': typeof ReportsRoute
   '/roles': typeof RolesRoute
@@ -205,10 +219,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/audit-logs': typeof AuditLogsRoute
+  '/branches': typeof BranchesRoute
   '/customers': typeof CustomersRoute
   '/faq': typeof FaqRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/organizations': typeof OrganizationsRoute
   '/products': typeof ProductsRoute
   '/reports': typeof ReportsRoute
   '/roles': typeof RolesRoute
@@ -235,10 +251,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/audit-logs': typeof AuditLogsRoute
+  '/branches': typeof BranchesRoute
   '/customers': typeof CustomersRoute
   '/faq': typeof FaqRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/organizations': typeof OrganizationsRoute
   '/products': typeof ProductsRoute
   '/reports': typeof ReportsRoute
   '/roles': typeof RolesRoute
@@ -266,10 +284,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/audit-logs'
+    | '/branches'
     | '/customers'
     | '/faq'
     | '/login'
     | '/notifications'
+    | '/organizations'
     | '/products'
     | '/reports'
     | '/roles'
@@ -295,10 +315,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/audit-logs'
+    | '/branches'
     | '/customers'
     | '/faq'
     | '/login'
     | '/notifications'
+    | '/organizations'
     | '/products'
     | '/reports'
     | '/roles'
@@ -324,10 +346,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/audit-logs'
+    | '/branches'
     | '/customers'
     | '/faq'
     | '/login'
     | '/notifications'
+    | '/organizations'
     | '/products'
     | '/reports'
     | '/roles'
@@ -354,10 +378,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuditLogsRoute: typeof AuditLogsRoute
+  BranchesRoute: typeof BranchesRoute
   CustomersRoute: typeof CustomersRoute
   FaqRoute: typeof FaqRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  OrganizationsRoute: typeof OrganizationsRoute
   ProductsRoute: typeof ProductsRoute
   ReportsRoute: typeof ReportsRoute
   RolesRoute: typeof RolesRoute
@@ -431,6 +457,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations': {
+      id: '/organizations'
+      path: '/organizations'
+      fullPath: '/organizations'
+      preLoaderRoute: typeof OrganizationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notifications': {
       id: '/notifications'
       path: '/notifications'
@@ -457,6 +490,13 @@ declare module '@tanstack/react-router' {
       path: '/customers'
       fullPath: '/customers'
       preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branches': {
+      id: '/branches'
+      path: '/branches'
+      fullPath: '/branches'
+      preLoaderRoute: typeof BranchesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/audit-logs': {
@@ -589,10 +629,12 @@ const ApiOrdersRouteWithChildren = ApiOrdersRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuditLogsRoute: AuditLogsRoute,
+  BranchesRoute: BranchesRoute,
   CustomersRoute: CustomersRoute,
   FaqRoute: FaqRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  OrganizationsRoute: OrganizationsRoute,
   ProductsRoute: ProductsRoute,
   ReportsRoute: ReportsRoute,
   RolesRoute: RolesRoute,

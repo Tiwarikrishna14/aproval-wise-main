@@ -18,6 +18,8 @@ import {
   Workflow,
   KeyRound,
   ScrollText,
+  GitBranch,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./logo";
@@ -48,6 +50,8 @@ const customerNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
+  { label: "Organizations", to: "/organizations", icon: Building2, anyPermission: ["ORGANIZATION_VIEW", "ORGANIZATION_CREATE"] },
+  { label: "Branches", to: "/branches", icon: GitBranch, anyPermission: ["BRANCH_VIEW", "BRANCH_CREATE"] },
   { label: "Orders", to: "/orders", icon: ShoppingCart, permission: "ORDER_VIEW" },
   {
     label: "Approval Queue",
@@ -67,7 +71,7 @@ const adminNav: NavItem[] = [
     icon: ClipboardList,
     permission: "STOCK_REQUEST_VIEW",
   },
-  { label: "Customers", to: "/customers", icon: Users, permission: "ORGANIZATION_CREATE" },
+  { label: "Customers", to: "/customers", icon: Users, anyPermission: ["CUSTOMER_VIEW", "CUSTOMER_CREATE"] },
   { label: "Users", to: "/users", icon: UserCircle, permission: "USER_VIEW" },
   { label: "Products", to: "/products", icon: Package, permission: "PRODUCT_VIEW" },
   { label: "Workflow Setup", to: "/workflows", icon: Workflow },

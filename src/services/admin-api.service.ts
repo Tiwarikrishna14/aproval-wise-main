@@ -21,7 +21,8 @@ export type OrganizationResponse = {
   id: string;
   organizationCode: string;
   name: string;
-  organizationType: "SYSTEM" | "CUSTOMER" | "SUPPLIER";
+  organizationType: "PARENT" | "SYSTEM" | "CUSTOMER" | "SUPPLIER" | "BRANCH";
+  parentOrganizationId?: string;
   email?: string;
   phone?: string;
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
@@ -33,6 +34,7 @@ export type CreateOrganizationRequest = {
   organizationCode: string;
   name: string;
   organizationType: OrganizationResponse["organizationType"];
+  parentOrganizationId?: string;
   email?: string;
   phone?: string;
 };
@@ -40,6 +42,7 @@ export type CreateOrganizationRequest = {
 export type UpdateOrganizationRequest = {
   name: string;
   organizationType: OrganizationResponse["organizationType"];
+  parentOrganizationId?: string;
   email?: string;
   phone?: string;
 };
@@ -47,6 +50,8 @@ export type UpdateOrganizationRequest = {
 export type UserResponse = {
   id: string;
   organizationId: string;
+  branchId?: string;
+  businessCustomerId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -61,6 +66,8 @@ export type UserResponse = {
 
 export type CreateUserRequest = {
   organizationId?: string;
+  branchId?: string;
+  businessCustomerId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -147,6 +154,103 @@ export const organizationsApi = {
     apiPost<ApiEnvelope<OrganizationResponse>>("/api/organizations", body),
   update: (id: string, body: UpdateOrganizationRequest) =>
     apiPut<ApiEnvelope<OrganizationResponse>>(`/api/organizations/${id}`, body),
+};
+
+export type BranchResponse = {
+  id: string;
+  organizationId: string;
+  branchCode: string;
+  name: string;
+  city?: string;
+  address?: string;
+  status: "ACTIVE" | "INACTIVE";
+  customerCount?: number;
+  userCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export function branchRecords(
+  value: PageResponse<BranchResponse> | BranchResponse[] | undefined,
+) {
+  return Array.isArray(value) ? value : value?.content ?? [];
+}
+
+export type CreateBranchRequest = {
+  branchCode: string;
+  name: string;
+  city?: string;
+};
+
+export type UpdateBranchRequest = CreateBranchRequest & {
+  status?: BranchResponse["status"];
+};
+
+export const branchesApi = {
+  list: (query?: PageableQuery & { organizationId?: string }) => {
+    const params = new URLSearchParams(buildSearchParams(query));
+    if (query?.organizationId) params.set("organizationId", query.organizationId);
+    return apiGet<ApiEnvelope<PageResponse<BranchResponse> | BranchResponse[]>>(
+      `/api/branches?${params.toString()}`,
+    );
+  },
+  get: (id: string) => apiGet<ApiEnvelope<BranchResponse>>(`/api/branches/${id}`),
+  create: (organizationId: string, body: CreateBranchRequest) =>
+    apiPost<ApiEnvelope<BranchResponse>>(`/api/branches?organizationId=${encodeURIComponent(organizationId)}`, body),
+  update: (id: string, body: UpdateBranchRequest) =>
+    apiPut<ApiEnvelope<BranchResponse>>(`/api/branches/${id}`, body),
+};
+
+export type BusinessCustomerResponse = {
+  id: string;
+  organizationId?: string;
+  branchId: string;
+  customerCode: string;
+  name: string;
+  city?: string;
+  state?: string;
+  address?: string;
+  pincode?: string;
+  email?: string;
+  phone?: string;
+  status: "ACTIVE" | "INACTIVE";
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateBusinessCustomerRequest = {
+  customerCode: string;
+  name: string;
+  city?: string;
+  state?: string;
+  address?: string;
+  pincode?: string;
+  email?: string;
+  phone?: string;
+};
+
+export type UpdateBusinessCustomerRequest = Omit<CreateBusinessCustomerRequest, "customerCode"> & {
+  status?: BusinessCustomerResponse["status"];
+};
+
+export const businessCustomersApi = {
+  list: (filters: { branchId?: string; organizationId?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.branchId) params.set("branchId", filters.branchId);
+    if (filters.organizationId) params.set("organizationId", filters.organizationId);
+    const query = params.toString();
+    return apiGet<ApiEnvelope<BusinessCustomerResponse[] | PageResponse<BusinessCustomerResponse>>>(
+      `/api/business-customers${query ? `?${query}` : ""}`,
+    );
+  },
+  get: (id: string) => apiGet<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`),
+  create: (branchId: string, body: CreateBusinessCustomerRequest) =>
+    apiPost<ApiEnvelope<BusinessCustomerResponse>>(
+      `/api/business-customers?branchId=${encodeURIComponent(branchId)}`,
+      body,
+    ),
+  update: (id: string, body: UpdateBusinessCustomerRequest) =>
+    apiPut<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`, body),
 };
 
 export const permissionsApi = {

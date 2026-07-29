@@ -21,7 +21,7 @@ import {
 } from "@/services/admin-api.service";
 import type { AuthUser } from "@/services/auth.service";
 
-const organizationTypes = ["SYSTEM", "CUSTOMER", "SUPPLIER"] as const;
+const organizationTypes = ["PARENT", "SYSTEM", "CUSTOMER", "SUPPLIER"] as const;
 
 type ProfileForm = {
   firstName: string;
@@ -238,6 +238,7 @@ function SettingsPage() {
           </Field>
           <ReadOnlyField label="Role" value={user?.role ?? ""} />
           <ReadOnlyField label="Organization ID" value={organizationId} />
+          <ReadOnlyField label="Branch ID" value={user?.branchId || "Organization-wide"} />
         </div>
 
         {!canUpdateUser ? (
