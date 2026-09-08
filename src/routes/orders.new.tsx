@@ -12,7 +12,7 @@ import type { Product } from "@/lib/domain-types";
 import { ordersApi } from "@/services/domain-api.service";
 
 export const Route = createFileRoute("/orders/new")({
-  head: () => ({ meta: [{ title: "Create Order - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Create Order - Akribiz B2B" }] }),
   component: CreateOrder,
 });
 

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useFaqs } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/faq")({
-  head: () => ({ meta: [{ title: "Help & FAQ - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Help & FAQ - Akribiz B2B" }] }),
   component: FaqPage,
 });
 

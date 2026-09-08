@@ -16,6 +16,8 @@ export type AuthUser = {
   initials: string;
   role: Role;
   organizationId?: string;
+  organizationName?:string;
+  userType?:string;
   branchId?: string;
   businessCustomerId?: string;
   roles?: string[];

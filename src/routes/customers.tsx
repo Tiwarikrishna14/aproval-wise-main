@@ -49,7 +49,7 @@ const emptyForm: CustomerForm = {
 };
 
 export const Route = createFileRoute("/customers")({
-  head: () => ({ meta: [{ title: "Business Customers - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Business Customers - Akribiz B2B" }] }),
   component: CustomersPage,
 });
 

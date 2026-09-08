@@ -31,12 +31,13 @@ type BranchForm = {
   branchCode: string;
   name: string;
   city: string;
+  address: string;
 };
 
-const emptyForm: BranchForm = { branchCode: "", name: "", city: "" };
+const emptyForm: BranchForm = { branchCode: "", name: "", city: "", address: "" };
 
 export const Route = createFileRoute("/branches")({
-  head: () => ({ meta: [{ title: "Branches - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Branches - Akribiz B2B" }] }),
   component: BranchesPage,
 });
 
@@ -86,6 +87,7 @@ function BranchesPage() {
       branchCode: form.branchCode.trim(),
       name: form.name.trim(),
       city: form.city.trim() || undefined,
+      address: form.address.trim()
     });
   }
 
@@ -165,7 +167,7 @@ function BranchesPage() {
                     <td className="px-4 py-3 text-muted-foreground">{branch.branchCode}</td>
                     <td className="px-4 py-3">{branch.city || "-"}</td>
                     <td className="px-4 py-3">{branch.customerCount ?? 0}</td>
-                    <td className="px-4 py-3">{branch.userCount ?? 0}</td>
+                    <td className="px-4 py-3">{branch.userCount ?? 0}</td>                 
                     <td className="px-4 py-3">
                       <StatusBadge
                         status={
@@ -177,6 +179,7 @@ function BranchesPage() {
                         }
                       />
                     </td>
+                    {/* <td className="px-4 py-3">{branch.address || "-"}</td> */}
                   </tr>
                 ))
               ) : (
@@ -225,7 +228,15 @@ function BranchesPage() {
                   id="branch-city"
                   value={form.city}
                   onChange={(event) => setForm({ ...form, city: event.target.value })}
-                  placeholder="Noida"
+                  placeholder="City"
+                />
+              </Field>
+              <Field label="Address" id="branch-address">
+                <Input
+                  id="branch-address"
+                  value={form.address}
+                  onChange={(event) => setForm({ ...form, address: event.target.value })}
+                  placeholder="Address"
                 />
               </Field>
             </div>

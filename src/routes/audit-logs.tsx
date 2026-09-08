@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAuditLogs } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/audit-logs")({
-  head: () => ({ meta: [{ title: "Audit Logs - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Audit Logs - Akribiz B2B" }] }),
   component: AuditLogsPage,
 });
 

@@ -11,8 +11,8 @@ import { useAuth } from "@/lib/auth-context";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Login - StockFlow B2B" },
-      { name: "description", content: "Sign in to StockFlow B2B." },
+      { title: "Login - Akribiz B2B" },
+      { name: "description", content: "Sign in to Akribiz B2B." },
     ],
   }),
   component: LoginPage,

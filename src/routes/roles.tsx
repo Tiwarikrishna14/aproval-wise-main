@@ -32,7 +32,7 @@ const permissionsQueryOptions = {
 };
 
 export const Route = createFileRoute("/roles")({
-  head: () => ({ meta: [{ title: "Roles & Permissions - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Roles & Permissions - Akribiz B2B" }] }),
   component: RolesPage,
 });
 

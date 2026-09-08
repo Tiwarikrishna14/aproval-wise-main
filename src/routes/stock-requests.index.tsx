@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useStockRequests } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/stock-requests/")({
-  head: () => ({ meta: [{ title: "Stock Requests - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Stock Requests - Akribiz B2B" }] }),
   component: StockRequestsPage,
 });
 

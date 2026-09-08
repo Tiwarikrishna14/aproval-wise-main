@@ -78,13 +78,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Dashboard — StockFlow B2B" },
+      { title: "Dashboard — Akribiz B2B" },
       { name: "description", content: "Overview of orders, approvals, and stock activity." },
-      { property: "og:title", content: "Dashboard — StockFlow B2B" },
+      { property: "og:title", content: "Dashboard — Akribiz B2B" },
       { property: "og:description", content: "Overview of orders, approvals, and stock activity." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Dashboard — StockFlow B2B" },
+      { name: "twitter:title", content: "Dashboard — Akribiz B2B" },
       {
         name: "twitter:description",
         content: "Overview of orders, approvals, and stock activity.",

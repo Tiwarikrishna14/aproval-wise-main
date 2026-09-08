@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useStockVerification } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/stock-verification")({
-  head: () => ({ meta: [{ title: "Stock Verification - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Stock Verification - Akribiz B2B" }] }),
   component: StockVerify,
 });
 

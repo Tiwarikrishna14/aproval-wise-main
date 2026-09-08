@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useInventoryItem } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/inventory/$sku")({
-  head: () => ({ meta: [{ title: "Stock Details - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Stock Details - Akribiz B2B" }] }),
   component: StockDetail,
 });
 

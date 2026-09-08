@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useApproval } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/approvals/$id")({
-  head: () => ({ meta: [{ title: "Approval Review - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Approval Review - Akribiz B2B" }] }),
   component: ApprovalReview,
 });
 

@@ -52,7 +52,7 @@ export function Header() {
   const displayName = user?.name ?? "User";
   const displayEmail = user?.email ?? "";
   const initials = user?.initials ?? "U";
-  const organizationLabel = user?.name ? `Org ${user.name}` : "";
+  const organizationLabel =  user?.userType === "customer" && user?.organizationName ? `Org ${user.organizationName}` : "";
 
   async function handleLogout() {
     await logout();

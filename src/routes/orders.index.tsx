@@ -11,7 +11,7 @@ import { useOrders } from "@/hooks/use-orders";
 export const Route = createFileRoute("/orders/")({
   head: () => ({
     meta: [
-      { title: "Orders - StockFlow B2B" },
+      { title: "Orders - Akribiz B2B" },
       { name: "description", content: "Manage all orders, drafts, approvals and deliveries." },
     ],
   }),

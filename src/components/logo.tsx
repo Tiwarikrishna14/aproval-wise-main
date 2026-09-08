@@ -8,9 +8,19 @@ export function Logo({ collapsed = false, className }: { collapsed?: boolean; cl
         <Package className="h-4.5 w-4.5" strokeWidth={2.25} />
         <ArrowUpRight className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-sm bg-primary text-primary-foreground p-[1px]" strokeWidth={3} />
       </div>
+
+
+
       {!collapsed && (
         <div className="min-w-0">
-          <div className="truncate text-[15px] font-semibold leading-tight tracking-tight">StockFlow</div>
+           <div className="relative flex h-9 w-20 shrink-0 items-center justify-center">
+        <img
+          src="/ABS_New-logo.png"
+          alt="Akribiz"
+          className="h-10 w-20 object-contain"
+        />
+      </div>
+          {/* <div className="truncate text-[15px] font-semibold leading-tight tracking-tight">Akribiz</div> */}
           <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-navy-muted">B2B Operations</div>
         </div>
       )}

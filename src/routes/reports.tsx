@@ -17,7 +17,7 @@ import { useReports } from "@/hooks/use-domain-data";
 import type { ReportItem } from "@/lib/domain-types";
 
 export const Route = createFileRoute("/reports")({
-  head: () => ({ meta: [{ title: "Reports - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Reports - Akribiz B2B" }] }),
   component: ReportsPage,
 });
 

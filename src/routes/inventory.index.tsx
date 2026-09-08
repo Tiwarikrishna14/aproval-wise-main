@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useInventory } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/inventory/")({
-  head: () => ({ meta: [{ title: "Inventory - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Inventory - Akribiz B2B" }] }),
   component: InventoryPage,
 });
 

@@ -180,6 +180,7 @@ export type CreateBranchRequest = {
   branchCode: string;
   name: string;
   city?: string;
+  address?:string;
 };
 
 export type UpdateBranchRequest = CreateBranchRequest & {
@@ -256,3 +257,7 @@ export const businessCustomersApi = {
 export const permissionsApi = {
   list: () => apiGet<ApiEnvelope<PermissionResponse[]>>("/api/permissions"),
 };
+
+export const productsApi = {
+  list: () => apiGet<ApiEnvelope<PermissionResponse[]>>("/api/permissions"),
+}; 

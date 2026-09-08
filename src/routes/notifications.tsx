@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/notifications")({
-  head: () => ({ meta: [{ title: "Notifications - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Notifications - Akribiz B2B" }] }),
   component: NotificationsPage,
 });
 

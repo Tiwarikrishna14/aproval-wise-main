@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApprovals } from "@/hooks/use-domain-data";
 
 export const Route = createFileRoute("/approvals/")({
-  head: () => ({ meta: [{ title: "Approval Queue - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Approval Queue - Akribiz B2B" }] }),
   component: ApprovalsPage,
 });
 

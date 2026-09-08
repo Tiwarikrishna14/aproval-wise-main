@@ -18,7 +18,7 @@ import { useOrder } from "@/hooks/use-orders";
 import type { TimelineItem } from "@/lib/domain-types";
 
 export const Route = createFileRoute("/orders/$id")({
-  head: ({ params }) => ({ meta: [{ title: `Order ${params.id} - StockFlow B2B` }] }),
+  head: ({ params }) => ({ meta: [{ title: `Order ${params.id} - Akribiz B2B` }] }),
   component: OrderDetail,
 });
 

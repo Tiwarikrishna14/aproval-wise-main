@@ -52,7 +52,7 @@ const emptyOrganizationForm: OrganizationForm = {
 };
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Settings - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Settings - Akribiz B2B" }] }),
   component: SettingsPage,
 });
 

@@ -107,7 +107,7 @@ const emptyEditForm: EditUserForm = {
 };
 
 export const Route = createFileRoute("/users")({
-  head: () => ({ meta: [{ title: "Users - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Users - Akribiz B2B" }] }),
   component: UsersPage,
 });
 

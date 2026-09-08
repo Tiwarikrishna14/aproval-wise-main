@@ -19,7 +19,7 @@ type OrganizationForm = { organizationCode: string; name: string; email: string;
 const emptyForm: OrganizationForm = { organizationCode: "", name: "", email: "", phone: "" };
 
 export const Route = createFileRoute("/organizations")({
-  head: () => ({ meta: [{ title: "Organizations - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Organizations - Akribiz B2B" }] }),
   component: OrganizationsPage,
 });
 

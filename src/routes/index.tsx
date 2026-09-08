@@ -27,7 +27,7 @@ import type { ActivityItem, DashboardMetric, OrderOverviewPoint } from "@/lib/da
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — StockFlow B2B" },
+      { title: "Dashboard — Akribiz B2B" },
       { name: "description", content: "Overview of orders, approvals, and stock activity." },
     ],
   }),

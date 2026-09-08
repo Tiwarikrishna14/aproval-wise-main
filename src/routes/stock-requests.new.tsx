@@ -9,7 +9,7 @@ import { useInventory } from "@/hooks/use-domain-data";
 import { stockRequestsApi } from "@/services/domain-api.service";
 
 export const Route = createFileRoute("/stock-requests/new")({
-  head: () => ({ meta: [{ title: "Request Stock - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Request Stock - Akribiz B2B" }] }),
   component: NewRequest,
 });
 

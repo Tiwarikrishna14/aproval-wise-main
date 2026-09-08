@@ -10,7 +10,7 @@ import { useWorkflows } from "@/hooks/use-domain-data";
 import type { Workflow, WorkflowStep } from "@/lib/domain-types";
 
 export const Route = createFileRoute("/workflows")({
-  head: () => ({ meta: [{ title: "Approval Workflows - StockFlow B2B" }] }),
+  head: () => ({ meta: [{ title: "Approval Workflows - Akribiz B2B" }] }),
   component: WorkflowsPage,
 });
 
