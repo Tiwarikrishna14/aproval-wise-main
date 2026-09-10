@@ -186,6 +186,22 @@ const organizationsQuery = useQuery({
             ))}
           </select>
         </div>
+        <div className="max-w-sm space-y-2">
+          <Label htmlFor="customer-organization">Parent Organization</Label>
+          <select
+            id="customer-organization"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={organizationId}
+            onChange={(event) => setOrganizationId(event.target.value)}
+          >
+            <option value="">Select organization</option>
+            {(organizationsQuery.data ?? []).map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name} ({organization.organizationCode})
+              </option>
+            ))}
+          </select>
+        </div>
       {isError ? (
         <DataError
           message={`Failed to load products: ${error.message}`}
