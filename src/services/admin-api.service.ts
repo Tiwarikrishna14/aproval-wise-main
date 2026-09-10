@@ -234,6 +234,15 @@ export type UpdateBusinessCustomerRequest = Omit<CreateBusinessCustomerRequest, 
   status?: BusinessCustomerResponse["status"];
 };
 
+export type ProductForm = {
+  category: string;
+  customerSellCode: string;
+  navItemCode: string;
+  itemDescription: string;
+  uom: string;
+  unitRate: number;
+};
+
 export const businessCustomersApi = {
   list: (filters: { branchId?: string; organizationId?: string } = {}) => {
     const params = new URLSearchParams();
@@ -259,5 +268,5 @@ export const permissionsApi = {
 };
 
 export const productsApi = {
-  list: () => apiGet<ApiEnvelope<PermissionResponse[]>>("/api/permissions"),
+  create: (body: ProductForm) => apiPost<ApiEnvelope<PermissionResponse[]>>("/api/products", body),
 }; 

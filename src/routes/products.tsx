@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
 import {
@@ -26,6 +26,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { useProducts } from "@/hooks/use-domain-data";
+import { branchesApi, branchRecords, businessCustomersApi, organizationsApi, ProductForm, productsApi } from "@/services/admin-api.service";
+import { useAuth } from "@/lib/auth-context";
+import { hasPermission, isSuperAdmin } from "@/lib/permissions";
 
 export const Route = createFileRoute("/products")({
   head: () => ({
@@ -34,14 +37,7 @@ export const Route = createFileRoute("/products")({
   component: ProductsPage,
 });
 
-type ProductForm = {
-  category: string;
-  customerSellCode: string;
-  navItemCode: string;
-  itemDescription: string;
-  uom: string;
-  unitRate: string;
-};
+
 
 const emptyProductForm: ProductForm = {
   category: "",
@@ -49,7 +45,7 @@ const emptyProductForm: ProductForm = {
   navItemCode: "",
   itemDescription: "",
   uom: "",
-  unitRate: "",
+  unitRate: 0.0,
 };
 
 // Predefined Categories
@@ -70,23 +66,91 @@ const uoms = [
   "BOX",
 ];
 
+
+
 function ProductsPage() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canView = hasPermission(user, "CUSTOMER_VIEW");
+  const canCreate = hasPermission(user, "CUSTOMER_CREATE");
+  
   const { data: products = [], isLoading, isError, error } = useProducts();
 
   const [productDialogOpen, setProductDialogOpen] = useState(false);
 
   const [productForm, setProductForm] =
     useState<ProductForm>(emptyProductForm);
+  const isSa = isSuperAdmin(user);
+
+  const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
+  const [branchId, setBranchId] = useState(user?.branchId ?? "");
+
+const organizationsQuery = useQuery({
+    queryKey: ["admin", "branches", "organizations"],
+    queryFn: async () =>
+      (await organizationsApi.list({ size: 100 })).data.content.filter(
+        (item) => item.organizationType === "PARENT",
+      ),
+    enabled: isSuperAdmin(user),
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+    const branchesQuery = useQuery({
+      queryKey: ["admin", "customers", "branches", organizationId],
+      queryFn: async () =>
+        branchRecords((await branchesApi.list({ size: 100, organizationId })).data),
+      enabled: isSuperAdmin(user),
+      retry: false,
+      staleTime: 60 * 1000,
+    });
+      const customersQuery = useQuery({
+        queryKey: ["admin", "business-customers", organizationId, branchId],
+        queryFn: async () =>
+          (await businessCustomersApi.list({ branchId: branchId || undefined, organizationId: organizationId || undefined })).data,
+        enabled: canView || canCreate,
+        retry: false,
+        staleTime: 60 * 1000,
+      });
+
+  const branches = branchRecords(branchesQuery.data);
+  const organizations = (organizationsQuery.data ?? []).filter(
+    (organization) => organization.organizationType === "PARENT",
+  );
+  const organizationsById = new Map(
+    (organizationsQuery.data ?? []).map((organization) => [organization.id, organization.name]),
+  );
+  const branchesById = new Map(branches.map((branch) => [branch.id, branch]));
+  const customers = Array.isArray(customersQuery.data)
+    ? customersQuery.data
+    : customersQuery.data?.content ?? [];
+    const customersById = new Map(customers.map((customer) => [customer.id, customer]));
+    
+  const createProduct = useMutation({
+    mutationFn: (body: ProductForm) =>
+      productsApi.create(body),
+
+    onSuccess: async () => {
+      setProductDialogOpen(false);
+      setProductForm(emptyProductForm);
+
+      await queryClient.invalidateQueries({
+        queryKey: ["products"],
+      });
+    },
+  });
+
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    // For now, this only collects the form data.
-    // Connect this to your create-product API when available.
-    console.log("New Product:", productForm);
-
-    setProductDialogOpen(false);
-    setProductForm(emptyProductForm);
+    createProduct.mutate({
+      category: productForm.category,
+      customerSellCode: productForm.customerSellCode,
+      navItemCode: productForm.navItemCode,
+      itemDescription: productForm.itemDescription,
+      uom: productForm.uom,
+      unitRate: productForm.unitRate,
+    });
   }
 
   function handleClose() {
@@ -106,7 +170,22 @@ function ProductsPage() {
           </Button>
         }
       />
-
+<div className="max-w-sm space-y-2">
+          <Label htmlFor="customer-organization">Parent Organization</Label>
+          <select
+            id="customer-organization"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={organizationId}
+            onChange={(event) => setOrganizationId(event.target.value)}
+          >
+            <option value="">Select organization</option>
+            {(organizationsQuery.data ?? []).map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name} ({organization.organizationCode})
+              </option>
+            ))}
+          </select>
+        </div>
       {isError ? (
         <DataError
           message={`Failed to load products: ${error.message}`}
@@ -373,7 +452,7 @@ function ProductsPage() {
                   onChange={(event) =>
                     setProductForm({
                       ...productForm,
-                      unitRate: event.target.value,
+                      unitRate:  Number(event.target.value),
                     })
                   }
                   placeholder="Enter unit rate"
