@@ -176,6 +176,12 @@ export function branchRecords(
   return Array.isArray(value) ? value : value?.content ?? [];
 }
 
+export function productRecords(
+  value: PageResponse<ProductResponse> | ProductResponse[] | undefined,
+) {
+  return Array.isArray(value) ? value : value?.content ?? [];
+}
+
 export type CreateBranchRequest = {
   branchCode: string;
   name: string;
@@ -233,6 +239,16 @@ export type CreateBusinessCustomerRequest = {
 export type UpdateBusinessCustomerRequest = Omit<CreateBusinessCustomerRequest, "customerCode"> & {
   status?: BusinessCustomerResponse["status"];
 };
+export interface ProductResponse {
+  id: number;
+  category: string;
+  customerSellCode: string;
+  navItemCode: string;
+  itemDescription: string;
+  uom: string;
+  unitRate: number;
+  status: string;
+}
 
 export type ProductForm = {
   category: string;
@@ -268,5 +284,24 @@ export const permissionsApi = {
 };
 
 export const productsApi = {
-  create: (body: ProductForm) => apiPost<ApiEnvelope<PermissionResponse[]>>("/api/products", body),
+  
+list: (
+    query?: {
+      customerCode?: string;
+    } & PageableQuery ,
+  ) => {
+    const params = new URLSearchParams(buildSearchParams(query));
+
+    if (query?.customerCode) {
+      params.set("customerCode", query.customerCode);
+    }
+
+    return apiPost<
+      ApiEnvelope<PageResponse<ProductResponse> | ProductResponse[]>>(
+      `/api/products/list-products?${params.toString()}`,
+      {},
+    );
+  },
+  
+    create: (body: ProductForm) => apiPost<ApiEnvelope<PermissionResponse[]>>("/api/products", body),
 }; 
