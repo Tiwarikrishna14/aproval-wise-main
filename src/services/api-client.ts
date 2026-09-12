@@ -293,6 +293,14 @@ export async function apiPut<T, TBody = unknown>(
   });
 }
 
+export async function apiPutForm<T>(path: string, body: FormData, init?: RequestInit): Promise<T> {
+  return apiRequest<T>(path, {
+    ...init,
+    method: "PUT",
+    body,
+  });
+}
+
 export async function apiDelete<T>(path: string, init?: RequestInit): Promise<T> {
   return apiRequest<T>(path, {
     ...init,

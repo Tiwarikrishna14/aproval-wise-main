@@ -61,6 +61,7 @@ function CustomersPage() {
   const isSa = isSuperAdmin(user);
   const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
   const [branchId, setBranchId] = useState(user?.branchId ?? "");
+  const isBranchScopedUser = !isSa && Boolean(user?.branchId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [pincodeStatus, setPincodeStatus] = useState("");
@@ -116,7 +117,12 @@ function CustomersPage() {
   const customersQuery = useQuery({
     queryKey: ["admin", "business-customers", organizationId, branchId],
     queryFn: async () =>
-      (await businessCustomersApi.list({ branchId: branchId || undefined, organizationId: organizationId || undefined })).data,
+      (
+        await businessCustomersApi.list({
+          branchId: branchId || undefined,
+          organizationId: organizationId || undefined,
+        })
+      ).data,
     enabled: canView || canCreate,
     retry: false,
     staleTime: 60 * 1000,
@@ -138,7 +144,7 @@ function CustomersPage() {
   const branchesById = new Map(branches.map((branch) => [branch.id, branch]));
   const customers = Array.isArray(customersQuery.data)
     ? customersQuery.data
-    : customersQuery.data?.content ?? [];
+    : (customersQuery.data?.content ?? []);
 
   const createCustomer = useMutation({
     mutationFn: (body: CreateBusinessCustomerRequest) =>
@@ -194,44 +200,46 @@ function CustomersPage() {
         }
       />
 
-      {isSa ? <div className="grid gap-4 sm:grid-cols-2">
-        <div className="max-w-sm space-y-2">
-        <Label htmlFor="customer-organization">Organization</Label>
-        <select
-          id="customer-organization"
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={organizationId}
-          onChange={(event) => {
-            setOrganizationId(event.target.value);
-            setBranchId("");
-          }}
-        >
-          {isSa ? <option value="">All organizations</option> : null}
-          {organizations.map((organization) => (
-            <option key={organization.id} value={organization.id}>
-              {organization.name} ({organization.organizationCode})
-            </option>
-          ))}
-        </select>
-        </div>
+      {isSa ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="max-w-sm space-y-2">
+            <Label htmlFor="customer-organization">Organization</Label>
+            <select
+              id="customer-organization"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={organizationId}
+              onChange={(event) => {
+                setOrganizationId(event.target.value);
+                setBranchId("");
+              }}
+            >
+              {isSa ? <option value="">All organizations</option> : null}
+              {organizations.map((organization) => (
+                <option key={organization.id} value={organization.id}>
+                  {organization.name} ({organization.organizationCode})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="max-w-sm space-y-2">
-        <Label htmlFor="customer-branch">Branch</Label>
-        <select
-          id="customer-branch"
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={branchId}
-          onChange={(event) => setBranchId(event.target.value)}
-        >
-          <option value="">All branches</option>
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name} ({branch.city || "Branch"})
-            </option>
-          ))}
-        </select>
+          <div className="max-w-sm space-y-2">
+            <Label htmlFor="customer-branch">Branch</Label>
+            <select
+              id="customer-branch"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={branchId}
+              onChange={(event) => setBranchId(event.target.value)}
+            >
+              <option value="">All branches</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name} ({branch.city || "Branch"})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div> : null}
+      ) : null}
 
       {customersQuery.isError ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -272,7 +280,9 @@ function CustomersPage() {
                           customer.organizationId ||
                             branchesById.get(customer.branchId)?.organizationId ||
                             "",
-                        ) || customer.organizationId || "-"}
+                        ) ||
+                          customer.organizationId ||
+                          "-"}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {branchesById.get(customer.branchId)?.name || customer.branchId}
@@ -319,39 +329,57 @@ function CustomersPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={submit}>
             <Field label="Organization" id="create-customer-organization">
-              <select
-                id="create-customer-organization"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={organizationId}
-                onChange={(event) => {
-                  setOrganizationId(event.target.value);
-                  setBranchId("");
-                }}
-                required
-              >
-                <option value="">Select organization</option>
-                {organizations.map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name} ({organization.organizationCode})
-                  </option>
-                ))}
-              </select>
+              {isSa ? (
+                <select
+                  id="create-customer-organization"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={organizationId}
+                  onChange={(event) => {
+                    setOrganizationId(event.target.value);
+                    setBranchId("");
+                  }}
+                  required
+                >
+                  <option value="">Select organization</option>
+                  {organizations.map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organization.name} ({organization.organizationCode})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="create-customer-organization"
+                  value={organizationId || "Assigned organization"}
+                  readOnly
+                  required
+                />
+              )}
             </Field>
             <Field label="Managing Branch" id="create-customer-branch">
-              <select
-                id="create-customer-branch"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={branchId}
-                onChange={(event) => setBranchId(event.target.value)}
-                required
-              >
-                <option value="">Select branch</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name} ({branch.city || "Branch"})
-                  </option>
-                ))}
-              </select>
+              {isBranchScopedUser ? (
+                <Input
+                  id="create-customer-branch"
+                  value={branchesById.get(branchId)?.name || branchId}
+                  readOnly
+                  required
+                />
+              ) : (
+                <select
+                  id="create-customer-branch"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                  required
+                >
+                  <option value="">Select branch</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name} ({branch.city || "Branch"})
+                    </option>
+                  ))}
+                </select>
+              )}
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Customer Code" id="customer-code">
@@ -404,10 +432,14 @@ function CustomersPage() {
                     inputMode="numeric"
                     maxLength={6}
                     value={form.pincode}
-                    onChange={(event) => updateField("pincode", event.target.value.replace(/\D/g, ""))}
+                    onChange={(event) =>
+                      updateField("pincode", event.target.value.replace(/\D/g, ""))
+                    }
                     placeholder="201301"
                   />
-                  {pincodeStatus ? <p className="text-xs text-muted-foreground">{pincodeStatus}</p> : null}
+                  {pincodeStatus ? (
+                    <p className="text-xs text-muted-foreground">{pincodeStatus}</p>
+                  ) : null}
                 </div>
               </Field>
               <Field label="Email" id="customer-email">

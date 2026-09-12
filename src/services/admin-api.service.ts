@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPostForm, apiPut } from "./api-client";
+import { apiDelete, apiGet, apiPost, apiPostForm, apiPut, apiPutForm } from "./api-client";
 
 export type ApiEnvelope<T> = {
   success: boolean;
@@ -248,7 +248,7 @@ export interface ProductResponse {
   itemDescription: string;
   uom: string;
   unitRate: number;
-  imagePath?: string;
+  imagePath?: string | null;
   status: string;
 }
 
@@ -259,6 +259,11 @@ export type ProductForm = {
   itemDescription: string;
   uom: string;
   unitRate: number;
+};
+
+export type UpdateProductRequest = ProductForm & {
+  status: string;
+  removeImage?: boolean;
 };
 
 export const businessCustomersApi = {
@@ -307,6 +312,12 @@ export const productsApi = {
   create: (body: ProductForm) => apiPost<ApiEnvelope<ProductResponse>>("/api/products", body),
   createWithImage: (body: FormData) =>
     apiPostForm<ApiEnvelope<ProductResponse>>("/api/products", body),
+  update: (id: number, body: UpdateProductRequest) =>
+    apiPut<ApiEnvelope<ProductResponse>>(`/api/products/${id}`, body),
+  updateWithImage: (id: number, body: FormData) =>
+    apiPutForm<ApiEnvelope<ProductResponse>>(`/api/products/${id}`, body),
+  bulkDelete: (ids: number[]) =>
+    apiPost<ApiEnvelope<unknown>, { ids: number[] }>("/api/products/bulk-delete", { ids }),
   bulkUpload: (customerSellCode: string, body: FormData) =>
     apiPostForm<ApiEnvelope<string>>(
       `/api/${encodeURIComponent(customerSellCode)}/bulk-upload`,
