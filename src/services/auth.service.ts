@@ -16,8 +16,8 @@ export type AuthUser = {
   initials: string;
   role: Role;
   organizationId?: string;
-  organizationName?:string;
-  userType?:string;
+  organizationName?: string;
+  userType?: string;
   branchId?: string;
   businessCustomerId?: string;
   roles?: string[];
@@ -45,6 +45,8 @@ type BackendUser = {
   email?: unknown;
   role?: unknown;
   organizationId?: unknown;
+  organizationName?: unknown;
+  userType?: unknown;
   branchId?: unknown;
   businessCustomerId?: unknown;
   roles?: unknown;
@@ -124,8 +126,11 @@ function normalizeUser(user: BackendUser): AuthUser {
     initials: initialsFromName(name),
     role: existingRole ?? roleFromBackend(roles, permissions),
     organizationId: typeof user.organizationId === "string" ? user.organizationId : undefined,
+    organizationName: typeof user.organizationName === "string" ? user.organizationName : undefined,
+    userType: typeof user.userType === "string" ? user.userType : undefined,
     branchId: typeof user.branchId === "string" ? user.branchId : undefined,
-    businessCustomerId: typeof user.businessCustomerId === "string" ? user.businessCustomerId : undefined,
+    businessCustomerId:
+      typeof user.businessCustomerId === "string" ? user.businessCustomerId : undefined,
     roles,
     permissions,
   };
@@ -206,6 +211,8 @@ function compactUser(user: AuthUser): AuthUser {
     initials: user.initials,
     role: user.role,
     organizationId: user.organizationId,
+    organizationName: user.organizationName,
+    userType: user.userType,
     branchId: user.branchId,
     businessCustomerId: user.businessCustomerId,
     roles: user.roles,

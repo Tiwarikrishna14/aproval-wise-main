@@ -111,6 +111,16 @@ function buildApiUrl(path: string) {
   return `${API_BASE_URL}${backendPath}`;
 }
 
+export function getApiAssetUrl(path?: string | null) {
+  if (!path) return "";
+
+  if (/^(https?:)?\/\//i.test(path) || path.startsWith("data:") || path.startsWith("blob:")) {
+    return path;
+  }
+
+  return buildApiUrl(path);
+}
+
 function shouldSkipRefresh(path: string) {
   const backendPath = normalizeApiPath(path);
 
@@ -256,6 +266,14 @@ export async function apiPost<T, TBody = unknown>(
       "Content-Type": "application/json",
       ...init?.headers,
     },
+  });
+}
+
+export async function apiPostForm<T>(path: string, body: FormData, init?: RequestInit): Promise<T> {
+  return apiRequest<T>(path, {
+    ...init,
+    method: "POST",
+    body,
   });
 }
 

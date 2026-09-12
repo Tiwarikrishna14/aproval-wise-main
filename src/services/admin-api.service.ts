@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "./api-client";
+import { apiDelete, apiGet, apiPost, apiPostForm, apiPut } from "./api-client";
 
 export type ApiEnvelope<T> = {
   success: boolean;
@@ -170,23 +170,21 @@ export type BranchResponse = {
   updatedAt?: string;
 };
 
-export function branchRecords(
-  value: PageResponse<BranchResponse> | BranchResponse[] | undefined,
-) {
-  return Array.isArray(value) ? value : value?.content ?? [];
+export function branchRecords(value: PageResponse<BranchResponse> | BranchResponse[] | undefined) {
+  return Array.isArray(value) ? value : (value?.content ?? []);
 }
 
 export function productRecords(
   value: PageResponse<ProductResponse> | ProductResponse[] | undefined,
 ) {
-  return Array.isArray(value) ? value : value?.content ?? [];
+  return Array.isArray(value) ? value : (value?.content ?? []);
 }
 
 export type CreateBranchRequest = {
   branchCode: string;
   name: string;
   city?: string;
-  address?:string;
+  address?: string;
 };
 
 export type UpdateBranchRequest = CreateBranchRequest & {
@@ -203,7 +201,10 @@ export const branchesApi = {
   },
   get: (id: string) => apiGet<ApiEnvelope<BranchResponse>>(`/api/branches/${id}`),
   create: (organizationId: string, body: CreateBranchRequest) =>
-    apiPost<ApiEnvelope<BranchResponse>>(`/api/branches?organizationId=${encodeURIComponent(organizationId)}`, body),
+    apiPost<ApiEnvelope<BranchResponse>>(
+      `/api/branches?organizationId=${encodeURIComponent(organizationId)}`,
+      body,
+    ),
   update: (id: string, body: UpdateBranchRequest) =>
     apiPut<ApiEnvelope<BranchResponse>>(`/api/branches/${id}`, body),
 };
@@ -247,6 +248,7 @@ export interface ProductResponse {
   itemDescription: string;
   uom: string;
   unitRate: number;
+  imagePath?: string;
   status: string;
 }
 
@@ -269,7 +271,8 @@ export const businessCustomersApi = {
       `/api/business-customers${query ? `?${query}` : ""}`,
     );
   },
-  get: (id: string) => apiGet<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`),
+  get: (id: string) =>
+    apiGet<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`),
   create: (branchId: string, body: CreateBusinessCustomerRequest) =>
     apiPost<ApiEnvelope<BusinessCustomerResponse>>(
       `/api/business-customers?branchId=${encodeURIComponent(branchId)}`,
@@ -284,24 +287,29 @@ export const permissionsApi = {
 };
 
 export const productsApi = {
-  
-list: (
+  list: (
     query?: {
-      customerCode?: string;
-    } & PageableQuery ,
+      customerSellCode?: string;
+    } & PageableQuery,
   ) => {
     const params = new URLSearchParams(buildSearchParams(query));
 
-    if (query?.customerCode) {
-      params.set("customerCode", query.customerCode);
+    if (query?.customerSellCode) {
+      params.set("customerCode", query.customerSellCode);
     }
 
-    return apiPost<
-      ApiEnvelope<PageResponse<ProductResponse> | ProductResponse[]>>(
-      `/api/products/list-products?${params.toString()}`,
+    return apiPost<ApiEnvelope<PageResponse<ProductResponse> | ProductResponse[]>>(
+      `/api/list-products?${params.toString()}`,
       {},
     );
   },
-  
-    create: (body: ProductForm) => apiPost<ApiEnvelope<PermissionResponse[]>>("/api/products", body),
-}; 
+
+  create: (body: ProductForm) => apiPost<ApiEnvelope<ProductResponse>>("/api/products", body),
+  createWithImage: (body: FormData) =>
+    apiPostForm<ApiEnvelope<ProductResponse>>("/api/products", body),
+  bulkUpload: (customerSellCode: string, body: FormData) =>
+    apiPostForm<ApiEnvelope<string>>(
+      `/api/${encodeURIComponent(customerSellCode)}/bulk-upload`,
+      body,
+    ),
+};

@@ -1,14 +1,9 @@
-
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Download, FileSpreadsheet, ImageIcon, Plus, Upload, X } from "lucide-react";
 
-import {
-  DataError,
-  TableLoadingRows,
-  TableMessageRow,
-} from "@/components/data-state";
+import { DataError, TableLoadingRows, TableMessageRow } from "@/components/data-state";
 
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
@@ -26,21 +21,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { useProducts } from "@/hooks/use-domain-data";
-
 import {
   branchesApi,
   branchRecords,
   businessCustomersApi,
+  type BranchResponse,
+  type BusinessCustomerResponse,
   organizationsApi,
-  ProductForm,
+  type ProductForm,
+  type ProductResponse,
   productRecords,
   productsApi,
 } from "@/services/admin-api.service";
+import { getApiAssetUrl } from "@/services/api-client";
 
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission, isSuperAdmin } from "@/lib/permissions";
-import { products } from "@/lib/sample-data";
 
 export const Route = createFileRoute("/products")({
   head: () => ({
@@ -58,30 +54,63 @@ const emptyProductForm: ProductForm = {
   unitRate: 0.0,
 };
 
-const categories = [
-  "House Keeping",
-  "Pantry",
-  "Staionery",
-];
+const categories = ["House Keeping", "Pantry", "Staionery"];
 
-const uoms = [
-  "EA",
-  "PCS",
-  "SET",
-  "KG",
-  "MTR",
-  "LTR",
-  "BOX",
-];
+const uoms = ["EA", "PCS", "SET", "KG", "MTR", "LTR", "BOX"];
+
+const productImageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+const bulkProductExtensions = [".csv", ".xls", ".xlsx"];
+const productImageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+const bulkTemplateCsv = [
+  "category,navItemCode,itemDescription,uom,unitRate,image",
+  "Food,NAV001,Rice Bag,KG,120.00,rice.jpg",
+  "Food,NAV002,Wheat Bag,KG,95.00,wheat.png",
+  "Food,NAV003,Sugar Bag,KG,82.50,",
+].join("\n");
+
+const bulkTemplateHref = `data:text/csv;charset=utf-8,${encodeURIComponent(bulkTemplateCsv)}`;
+
+type FormMessage = {
+  tone: "success" | "destructive";
+  text: string;
+};
+
+function hasAllowedExtension(fileName: string, extensions: string[]) {
+  const lowerName = fileName.toLowerCase();
+  return extensions.some((extension) => lowerName.endsWith(extension));
+}
+
+function isAllowedProductImage(file: File) {
+  return (
+    hasAllowedExtension(file.name, productImageExtensions) &&
+    (!file.type || productImageTypes.includes(file.type))
+  );
+}
+
+function formDataFromProduct(form: ProductForm, image: File) {
+  const data = new FormData();
+
+  data.set("category", form.category);
+  data.set("customerSellCode", form.customerSellCode);
+  data.set("navItemCode", form.navItemCode);
+  data.set("itemDescription", form.itemDescription);
+  data.set("uom", form.uom);
+  data.set("unitRate", String(form.unitRate));
+  data.set("image", image);
+
+  return data;
+}
 
 function ProductsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const canView = hasPermission(user, "CUSTOMER_VIEW");
-  const canCreate = hasPermission(user, "CUSTOMER_CREATE");
+  const canView = hasPermission(user, "PRODUCT_VIEW");
+  const canCreate = hasPermission(user, "PRODUCT_CREATE");
 
   const isSa = isSuperAdmin(user);
+  const assignedBusinessCustomerId = isSa ? undefined : user?.businessCustomerId;
 
   /*
    * ============================================================
@@ -92,13 +121,9 @@ function ProductsPage() {
    * ============================================================
    */
 
-  const [organizationId, setOrganizationId] = useState(
-    isSa ? "" : user?.organizationId ?? "",
-  );
+  const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
 
-  const [branchId, setBranchId] = useState(
-    isSa ? "" : user?.branchId ?? "",
-  );
+  const [branchId, setBranchId] = useState(isSa ? "" : (user?.branchId ?? ""));
 
   /*
    * Selected Customer Sell Code.
@@ -114,8 +139,19 @@ function ProductsPage() {
 
   const [productDialogOpen, setProductDialogOpen] = useState(false);
 
-  const [productForm, setProductForm] =
-    useState<ProductForm>(emptyProductForm);
+  const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productImagePreviewUrl, setProductImagePreviewUrl] = useState("");
+  const [productImageInputKey, setProductImageInputKey] = useState(0);
+  const [productImageError, setProductImageError] = useState("");
+  const [productMessage, setProductMessage] = useState<FormMessage | null>(null);
+  const [bulkCustomerSellCode, setBulkCustomerSellCode] = useState("");
+  const [bulkProductFile, setBulkProductFile] = useState<File | null>(null);
+  const [bulkImageFiles, setBulkImageFiles] = useState<File[]>([]);
+  const [bulkProductFileInputKey, setBulkProductFileInputKey] = useState(0);
+  const [bulkImageInputKey, setBulkImageInputKey] = useState(0);
+  const [bulkError, setBulkError] = useState("");
+  const [bulkMessage, setBulkMessage] = useState<FormMessage | null>(null);
 
   /*
    * ============================================================
@@ -150,12 +186,7 @@ function ProductsPage() {
    */
 
   const branchesQuery = useQuery({
-    queryKey: [
-      "admin",
-      "customers",
-      "branches",
-      organizationId,
-    ],
+    queryKey: ["admin", "customers", "branches", organizationId],
 
     queryFn: async () =>
       branchRecords(
@@ -167,7 +198,7 @@ function ProductsPage() {
         ).data,
       ),
 
-    enabled: Boolean(organizationId),
+    enabled: isSa && Boolean(organizationId),
 
     retry: false,
 
@@ -180,41 +211,42 @@ function ProductsPage() {
    * ============================================================
    * BUSINESS CUSTOMERS
    *
-   * This API gets Organization + Branch.
+   * Super Admin gets Organization + Branch.
+   * Normal users get only their assigned Business Customer.
    *
    * From this response we get Customer Sell Codes.
    * ============================================================
    */
 
   const customersQuery = useQuery({
-    queryKey: [
-      "admin",
-      "business-customers",
-      organizationId,
-      branchId,
-    ],
+    queryKey: ["admin", "business-customers", organizationId, branchId, assignedBusinessCustomerId],
 
-    queryFn: async () =>
-      (
+    queryFn: async () => {
+      if (!isSa) {
+        if (!assignedBusinessCustomerId) return [];
+        return [(await businessCustomersApi.get(assignedBusinessCustomerId)).data];
+      }
+
+      return (
         await businessCustomersApi.list({
           organizationId: organizationId || undefined,
           branchId: branchId || undefined,
         })
-      ).data,
+      ).data;
+    },
 
     enabled:
-      Boolean(organizationId) &&
-      Boolean(branchId) &&
-      (canView || canCreate),
+      (canView || canCreate) &&
+      (isSa ? Boolean(organizationId) && Boolean(branchId) : Boolean(assignedBusinessCustomerId)),
 
     retry: false,
 
     staleTime: 60 * 1000,
   });
 
-  const customers = Array.isArray(customersQuery.data)
+  const customers: BusinessCustomerResponse[] = Array.isArray(customersQuery.data)
     ? customersQuery.data
-    : customersQuery.data?.content ?? [];
+    : (customersQuery.data?.content ?? []);
 
   /*
    * ============================================================
@@ -226,45 +258,48 @@ function ProductsPage() {
    */
 
   const sellCodes = customers
-    .map((customer: any) => ({
+    .map((customer) => ({
       id: customer.id,
 
-      code:
-        customer.customerCode ??
-        "",
+      code: customer.customerCode ?? "",
 
-      name:
-        customer.name ??
-        customer.customerName ??
-        "",
+      name: customer.name ?? customer.customerName ?? "",
     }))
     .filter((item) => item.code)
-    .filter(
-      (item, index, array) =>
-        array.findIndex(
-          (x) => x.code === item.code,
-        ) === index,
-    );
+    .filter((item, index, array) => array.findIndex((x) => x.code === item.code) === index);
 
-  
-    console.log(customerSellCode)
+  const assignedCustomerSellCode = !isSa && sellCodes.length === 1 ? sellCodes[0].code : "";
 
- const productFetchQuery = useQuery({
+  const productFetchQuery = useQuery({
     queryKey: ["admin", "product-list", customerSellCode],
     queryFn: async () =>
       productRecords(
-              (
-        await productsApi.list({
-          size: 100,
-          customerCode: customerSellCode || undefined,
-        })
-      ).data,
-      ),    
-    enabled: canView || canCreate,
+        (
+          await productsApi.list({
+            size: 100,
+            customerSellCode,
+          })
+        ).data,
+      ),
+    enabled: Boolean(customerSellCode) && (canView || canCreate),
     retry: false,
     staleTime: 60 * 1000,
   });
-    const products = productRecords(productFetchQuery.data);
+  const products = productRecords(productFetchQuery.data).filter(
+    (product) => isSa || product.customerSellCode === customerSellCode,
+  );
+
+  useEffect(() => {
+    if (!productImageFile) {
+      setProductImagePreviewUrl("");
+      return;
+    }
+
+    const url = URL.createObjectURL(productImageFile);
+    setProductImagePreviewUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [productImageFile]);
 
   /*
    * ============================================================
@@ -273,19 +308,172 @@ function ProductsPage() {
    */
 
   const createProduct = useMutation({
-    mutationFn: (body: ProductForm) =>
-      productsApi.create(body),
+    mutationFn: ({ form, image }: { form: ProductForm; image?: File | null }) =>
+      image
+        ? productsApi.createWithImage(formDataFromProduct(form, image))
+        : productsApi.create(form),
 
     onSuccess: async () => {
       setProductDialogOpen(false);
+      setProductMessage({
+        tone: "success",
+        text: "Product created successfully.",
+      });
 
-      setProductForm(emptyProductForm);
+      resetProductCreateForm();
 
       await queryClient.invalidateQueries({
-        queryKey: ["products"],
+        queryKey: ["admin", "product-list"],
+      });
+    },
+
+    onError: (error) => {
+      setProductMessage({
+        tone: "destructive",
+        text: error instanceof Error ? error.message : "Failed to create product.",
       });
     },
   });
+
+  const bulkUpload = useMutation({
+    mutationFn: ({
+      customerSellCode,
+      file,
+      images,
+    }: {
+      customerSellCode: string;
+      file: File;
+      images: File[];
+    }) => {
+      const data = new FormData();
+      data.set("file", file);
+      images.forEach((image) => data.append("images", image));
+
+      return productsApi.bulkUpload(customerSellCode, data);
+    },
+
+    onSuccess: async () => {
+      setBulkMessage({
+        tone: "success",
+        text: "Bulk product upload completed successfully.",
+      });
+      resetBulkUploadForm();
+
+      await queryClient.invalidateQueries({
+        queryKey: ["admin", "product-list"],
+      });
+    },
+
+    onError: (error) => {
+      setBulkMessage({
+        tone: "destructive",
+        text: error instanceof Error ? error.message : "Bulk upload failed.",
+      });
+    },
+  });
+
+  function resetProductCreateForm() {
+    setProductForm({
+      ...emptyProductForm,
+      customerSellCode: isSa ? "" : customerSellCode,
+    });
+    setProductImageFile(null);
+    setProductImageError("");
+    setProductImageInputKey((key) => key + 1);
+  }
+
+  function resetBulkUploadForm() {
+    setBulkProductFile(null);
+    setBulkImageFiles([]);
+    setBulkError("");
+    setBulkProductFileInputKey((key) => key + 1);
+    setBulkImageInputKey((key) => key + 1);
+    if (!isSa) setBulkCustomerSellCode(customerSellCode);
+  }
+
+  function handleProductImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setProductImageError("");
+
+    if (!file) {
+      setProductImageFile(null);
+      return;
+    }
+
+    if (!isAllowedProductImage(file)) {
+      setProductImageFile(null);
+      setProductImageInputKey((key) => key + 1);
+      setProductImageError("Use a JPG, JPEG, PNG, WEBP, or GIF image.");
+      return;
+    }
+
+    setProductImageFile(file);
+  }
+
+  function removeProductImage() {
+    setProductImageFile(null);
+    setProductImageError("");
+    setProductImageInputKey((key) => key + 1);
+  }
+
+  function handleBulkProductFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setBulkError("");
+
+    if (!file) {
+      setBulkProductFile(null);
+      return;
+    }
+
+    if (!hasAllowedExtension(file.name, bulkProductExtensions)) {
+      setBulkProductFile(null);
+      setBulkProductFileInputKey((key) => key + 1);
+      setBulkError("Upload a CSV, XLS, or XLSX product file.");
+      return;
+    }
+
+    setBulkProductFile(file);
+  }
+
+  function handleBulkImagesChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    setBulkError("");
+
+    if (!files.length) {
+      setBulkImageFiles([]);
+      return;
+    }
+
+    const invalidFile = files.find((file) => !isAllowedProductImage(file));
+    if (invalidFile) {
+      setBulkImageFiles([]);
+      setBulkImageInputKey((key) => key + 1);
+      setBulkError(`${invalidFile.name} is not a supported product image.`);
+      return;
+    }
+
+    const duplicateFileName = files.find(
+      (file, index) => files.findIndex((item) => item.name === file.name) !== index,
+    );
+    if (duplicateFileName) {
+      setBulkImageFiles([]);
+      setBulkImageInputKey((key) => key + 1);
+      setBulkError(`Duplicate image filename: ${duplicateFileName.name}.`);
+      return;
+    }
+
+    setBulkImageFiles(files);
+  }
+
+  function removeBulkProductFile() {
+    setBulkProductFile(null);
+    setBulkProductFileInputKey((key) => key + 1);
+  }
+
+  function removeBulkImage(name: string) {
+    setBulkImageFiles((files) => files.filter((file) => file.name !== name));
+    setBulkImageInputKey((key) => key + 1);
+  }
 
   /*
    * ============================================================
@@ -301,6 +489,7 @@ function ProductsPage() {
 
     // Reset sell code
     setCustomerSellCode("");
+    setBulkCustomerSellCode("");
   }
 
   /*
@@ -314,6 +503,7 @@ function ProductsPage() {
 
     // Reset sell code
     setCustomerSellCode("");
+    setBulkCustomerSellCode("");
   }
 
   /*
@@ -326,21 +516,32 @@ function ProductsPage() {
 
   useEffect(() => {
     if (!isSa) {
-      setOrganizationId(
-        user?.organizationId ?? "",
-      );
+      setOrganizationId(user?.organizationId ?? "");
 
-      setBranchId(
-        user?.branchId ?? "",
-      );
+      setBranchId(user?.branchId ?? "");
 
       setCustomerSellCode("");
+      setProductForm((current) => ({
+        ...current,
+        customerSellCode: "",
+      }));
     }
-  }, [
-    isSa,
-    user?.organizationId,
-    user?.branchId,
-  ]);
+  }, [isSa, user?.businessCustomerId, user?.organizationId, user?.branchId]);
+
+  useEffect(() => {
+    if (!assignedCustomerSellCode) return;
+
+    setCustomerSellCode(assignedCustomerSellCode);
+    setBulkCustomerSellCode(assignedCustomerSellCode);
+    setProductForm((current) =>
+      current.customerSellCode === assignedCustomerSellCode
+        ? current
+        : {
+            ...current,
+            customerSellCode: assignedCustomerSellCode,
+          },
+    );
+  }, [assignedCustomerSellCode]);
 
   /*
    * ============================================================
@@ -348,22 +549,56 @@ function ProductsPage() {
    * ============================================================
    */
 
-  function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setProductMessage(null);
+
+    const submittedCustomerSellCode = isSa ? productForm.customerSellCode : customerSellCode;
+    if (!submittedCustomerSellCode) return;
 
     createProduct.mutate({
-      category: productForm.category,
-      customerSellCode:
-        productForm.customerSellCode,
-      navItemCode:
-        productForm.navItemCode,
-      itemDescription:
-        productForm.itemDescription,
-      uom: productForm.uom,
-      unitRate:
-        productForm.unitRate,
+      form: {
+        category: productForm.category,
+        customerSellCode: submittedCustomerSellCode,
+        navItemCode: productForm.navItemCode,
+        itemDescription: productForm.itemDescription,
+        uom: productForm.uom,
+        unitRate: productForm.unitRate,
+      },
+      image: productImageFile,
+    });
+  }
+
+  function handleBulkSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBulkError("");
+    setBulkMessage(null);
+
+    const submittedCustomerSellCode = isSa ? bulkCustomerSellCode : customerSellCode;
+
+    if (!submittedCustomerSellCode) {
+      setBulkError("Select a Customer Sell Code before uploading products.");
+      return;
+    }
+
+    if (!bulkProductFile) {
+      setBulkError("Select a CSV, XLS, or XLSX product file.");
+      return;
+    }
+
+    const duplicateFileName = bulkImageFiles.find(
+      (file, index) => bulkImageFiles.findIndex((item) => item.name === file.name) !== index,
+    );
+
+    if (duplicateFileName) {
+      setBulkError(`Duplicate image filename: ${duplicateFileName.name}.`);
+      return;
+    }
+
+    bulkUpload.mutate({
+      customerSellCode: submittedCustomerSellCode,
+      file: bulkProductFile,
+      images: bulkImageFiles,
     });
   }
 
@@ -376,7 +611,7 @@ function ProductsPage() {
   function handleClose() {
     setProductDialogOpen(false);
 
-    setProductForm(emptyProductForm);
+    resetProductCreateForm();
   }
 
   /*
@@ -385,9 +620,16 @@ function ProductsPage() {
    * ============================================================
    */
 
+  if (!canView && !canCreate) {
+    return (
+      <div className="mx-auto max-w-[1400px] rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
+        Product access requires PRODUCT_VIEW or PRODUCT_CREATE.
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
-
       {/* ======================================================
           PAGE HEADER
           ====================================================== */}
@@ -396,25 +638,35 @@ function ProductsPage() {
         title="Products"
         description="Catalog of products, pricing, and assignments."
         actions={
-          <Button
-            onClick={() =>
-              setProductDialogOpen(true)
-            }
-          >
-            <Plus className="mr-1.5 h-4 w-4" />
-            New Product
-          </Button>
+          canCreate ? (
+            <Button
+              onClick={() => {
+                if (!isSa && customerSellCode) {
+                  setProductForm((current) => ({
+                    ...current,
+                    customerSellCode,
+                  }));
+                }
+
+                setProductDialogOpen(true);
+              }}
+              disabled={!isSa && !customerSellCode}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              New Product
+            </Button>
+          ) : null
         }
       />
+
+      {productMessage?.tone === "success" ? <FormMessageBanner message={productMessage} /> : null}
 
       {/* ======================================================
           FILTER SECTION
           ====================================================== */}
 
       <div className="rounded-xl border border-border bg-card p-4">
-
         <div className="grid gap-4 md:grid-cols-3">
-
           {/* ==================================================
               ORGANIZATION
               Super Admin ONLY
@@ -422,38 +674,22 @@ function ProductsPage() {
 
           {isSa && (
             <div className="space-y-2">
-
-              <Label htmlFor="customer-organization">
-                Parent Organization
-              </Label>
+              <Label htmlFor="customer-organization">Parent Organization</Label>
 
               <select
                 id="customer-organization"
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={organizationId}
-                onChange={(event) =>
-                  handleOrganizationChange(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => handleOrganizationChange(event.target.value)}
               >
-                <option value="">
-                  Select organization
-                </option>
+                <option value="">Select organization</option>
 
-                {(
-                  organizationsQuery.data ?? []
-                ).map((organization) => (
-                  <option
-                    key={organization.id}
-                    value={organization.id}
-                  >
-                    {organization.name} (
-                    {organization.organizationCode})
+                {(organizationsQuery.data ?? []).map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name} ({organization.organizationCode})
                   </option>
                 ))}
               </select>
-
             </div>
           )}
 
@@ -464,39 +700,24 @@ function ProductsPage() {
 
           {isSa && (
             <div className="space-y-2">
-
-              <Label htmlFor="customer-branch">
-                Branch
-              </Label>
+              <Label htmlFor="customer-branch">Branch</Label>
 
               <select
                 id="customer-branch"
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={branchId}
-                onChange={(event) =>
-                  handleBranchChange(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => handleBranchChange(event.target.value)}
                 disabled={!organizationId}
               >
-                <option value="">
-                  Select branch
-                </option>
+                <option value="">Select branch</option>
 
-                {branches.map((branch: any) => (
-                  <option
-                    key={branch.id}
-                    value={branch.id}
-                  >
+                {branches.map((branch: BranchResponse) => (
+                  <option key={branch.id} value={branch.id}>
                     {branch.name}
-                    {branch.branchCode
-                      ? ` (${branch.branchCode})`
-                      : ""}
+                    {branch.branchCode ? ` (${branch.branchCode})` : ""}
                   </option>
                 ))}
               </select>
-
             </div>
           )}
 
@@ -505,60 +726,63 @@ function ProductsPage() {
               ================================================== */}
 
           <div className="space-y-2">
+            <Label htmlFor="customer-sell-code-filter">Customer Sell Code</Label>
 
-            <Label htmlFor="customer-sell-code-filter">
-              Customer Sell Code
-            </Label>
+            {isSa ? (
+              <select
+                id="customer-sell-code-filter"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={customerSellCode}
+                onChange={(event) => setCustomerSellCode(event.target.value)}
+                disabled={!organizationId || !branchId || customersQuery.isLoading}
+              >
+                <option value="">Select customer sell code</option>
 
-            <select
-              id="customer-sell-code-filter"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={customerSellCode}
-              onChange={(event) =>
-                setCustomerSellCode(
-                  event.target.value,
-                )
-              }
-              disabled={
-                !organizationId ||
-                !branchId ||
-                customersQuery.isLoading
-              }
-            >
-              <option value="">
-                Select customer sell code
-              </option>
-
-              {sellCodes.map((item) => (
-                <option
-                  key={item.id ?? item.code}
-                  value={item.code}
-                >
-                  {item.code}
-                  {item.name
-                    ? ` - ${item.name}`
-                    : ""}
-                </option>
-              ))}
-            </select>
+                {sellCodes.map((item) => (
+                  <option key={item.id ?? item.code} value={item.code}>
+                    {item.code}
+                    {item.name ? ` - ${item.name}` : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                id="customer-sell-code-filter"
+                value={customerSellCode}
+                placeholder={
+                  customersQuery.isLoading ? "Loading customer code..." : "Assigned customer code"
+                }
+                readOnly
+              />
+            )}
 
             {customersQuery.isLoading && (
+              <p className="text-xs text-muted-foreground">Loading customer sell codes...</p>
+            )}
+
+            {!customersQuery.isLoading &&
+              isSa &&
+              organizationId &&
+              branchId &&
+              sellCodes.length === 0 && (
+                <p className="text-xs text-muted-foreground">No customer sell codes found.</p>
+              )}
+
+            {!customersQuery.isLoading && !isSa && !assignedBusinessCustomerId && (
               <p className="text-xs text-muted-foreground">
-                Loading customer sell codes...
+                No customer code is assigned to your account.
               </p>
             )}
 
             {!customersQuery.isLoading &&
-              organizationId &&
-              branchId &&
+              !isSa &&
+              assignedBusinessCustomerId &&
               sellCodes.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  No customer sell codes found.
+                  Assigned customer code could not be found.
                 </p>
               )}
-
           </div>
-
         </div>
 
         {/* ====================================================
@@ -567,12 +791,120 @@ function ProductsPage() {
 
         {!isSa && (
           <div className="mt-3 text-xs text-muted-foreground">
-            Organization and Branch are automatically
-            selected from your account.
+            Organization, Branch, and Customer Sell Code are locked to your account.
           </div>
         )}
-
       </div>
+
+      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Bulk Product Upload</h2>
+            <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+              The image column in the CSV or Excel file must exactly match uploaded image filenames.
+              Leave the image column blank when a product has no image.
+            </p>
+          </div>
+
+          <Button asChild variant="outline" size="sm">
+            <a href={bulkTemplateHref} download="product-upload-template.csv">
+              <Download className="mr-1.5 h-4 w-4" />
+              Template
+            </a>
+          </Button>
+        </div>
+
+        <form className="space-y-4" onSubmit={handleBulkSubmit}>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="bulk-customer-sell-code">Customer Sell Code</Label>
+              {isSa ? (
+                <select
+                  id="bulk-customer-sell-code"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={bulkCustomerSellCode}
+                  onChange={(event) => setBulkCustomerSellCode(event.target.value)}
+                  disabled={!organizationId || !branchId || customersQuery.isLoading}
+                  required
+                >
+                  <option value="">Select customer sell code</option>
+                  {sellCodes.map((item) => (
+                    <option key={item.id ?? item.code} value={item.code}>
+                      {item.code}
+                      {item.name ? ` - ${item.name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="bulk-customer-sell-code"
+                  value={bulkCustomerSellCode || customerSellCode}
+                  readOnly
+                  required
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bulk-product-file">Product File</Label>
+              <Input
+                key={bulkProductFileInputKey}
+                id="bulk-product-file"
+                type="file"
+                accept=".csv,.xls,.xlsx"
+                onChange={handleBulkProductFileChange}
+                required={!bulkProductFile}
+              />
+              {bulkProductFile ? (
+                <SelectedFileRow
+                  icon={<FileSpreadsheet className="h-4 w-4" />}
+                  label={bulkProductFile.name}
+                  onRemove={removeBulkProductFile}
+                />
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bulk-image-files">Images</Label>
+              <Input
+                key={bulkImageInputKey}
+                id="bulk-image-files"
+                type="file"
+                accept={productImageExtensions.join(",")}
+                multiple
+                onChange={handleBulkImagesChange}
+              />
+              {bulkImageFiles.length ? (
+                <div className="max-h-28 space-y-1 overflow-auto rounded-md border border-border p-2">
+                  {bulkImageFiles.map((file) => (
+                    <SelectedFileRow
+                      key={file.name}
+                      icon={<ImageIcon className="h-4 w-4" />}
+                      label={file.name}
+                      onRemove={() => removeBulkImage(file.name)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {bulkError ? (
+            <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {bulkError}
+            </div>
+          ) : null}
+
+          {bulkMessage ? <FormMessageBanner message={bulkMessage} /> : null}
+
+          <div className="flex justify-end">
+            <Button type="submit" disabled={bulkUpload.isPending || (!isSa && !customerSellCode)}>
+              <Upload className="mr-1.5 h-4 w-4" />
+              {bulkUpload.isPending ? "Uploading..." : "Upload Products"}
+            </Button>
+          </div>
+        </form>
+      </section>
 
       {/* ======================================================
           PRODUCT TABLE
@@ -588,125 +920,75 @@ function ProductsPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-
           <table className="w-full text-sm">
-
             <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
-
               <tr>
-
                 {[
+                  "Image",
                   "Product",
-                  "SKU",
+                  "NAV Item Code",
                   "Category",
-                  "Unit",
-                  "Base Price",
-                  "Stock",
-                  "Active Customers",
+                  "UOM",
+                  "Unit Rate",
+                  "Customer Sell Code",
                   "Status",
                   "",
                 ].map((header) => (
-                  <th
-                    key={header}
-                    className="px-4 py-3 text-left font-medium"
-                  >
+                  <th key={header} className="px-4 py-3 text-left font-medium">
                     {header}
                   </th>
                 ))}
-
               </tr>
-
             </thead>
 
             <tbody>
-
               {productFetchQuery.isLoading ? (
                 <TableLoadingRows columns={9} />
-
               ) : !customerSellCode ? (
-                <TableMessageRow
-                  columns={9}
-                  message="Please select a Customer Sell Code."
-                />
-
+                <TableMessageRow columns={9} message="Please select a Customer Sell Code." />
               ) : products.length === 0 ? (
                 <TableMessageRow
                   columns={9}
                   message="No products found for the selected Customer Sell Code."
                 />
-
               ) : (
-                products.map((product: any) => (
-
+                products.map((product: ProductResponse) => (
                   <tr
-                    key={
-                      product.id ??
-                      product.sku
-                    }
+                    key={product.id ?? product.navItemCode}
                     className="border-t border-border hover:bg-surface/50"
                   >
-
-                    <td className="px-4 py-3 font-medium">
-                      {product.name}
+                    <td className="px-4 py-3">
+                      <ProductImageThumbnail product={product} />
                     </td>
+
+                    <td className="px-4 py-3 font-medium">{product.itemDescription}</td>
+
+                    <td className="px-4 py-3 text-muted-foreground">{product.navItemCode}</td>
+
+                    <td className="px-4 py-3">{product.category ?? "-"}</td>
+
+                    <td className="px-4 py-3">{product.uom ?? "-"}</td>
+
+                    <td className="px-4 py-3 tabular-nums">{formatMoney(product.unitRate)}</td>
 
                     <td className="px-4 py-3 text-muted-foreground">
-                      {product.sku}
+                      {product.customerSellCode ?? "-"}
                     </td>
 
                     <td className="px-4 py-3">
-                      {product.category ?? "-"}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {product.unit ?? "-"}
-                    </td>
-
-                    <td className="px-4 py-3 tabular-nums">
-                      {formatMoney(product.price)}
-                    </td>
-
-                    <td className="px-4 py-3 tabular-nums">
-                      {product.stock ?? "-"}
-                    </td>
-
-                    <td className="px-4 py-3 tabular-nums">
-                      {product.customers ?? "-"}
-                    </td>
-
-                    <td className="px-4 py-3">
-
-                      {product.status ? (
-                        <StatusBadge
-                          status={product.status}
-                        />
-                      ) : (
-                        "-"
-                      )}
-
+                      {product.status ? <StatusBadge status={product.status} /> : "-"}
                     </td>
 
                     <td className="px-4 py-3 text-right">
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled
-                      >
+                      <Button size="sm" variant="ghost" disabled>
                         Edit
                       </Button>
-
                     </td>
-
                   </tr>
-
                 ))
               )}
-
             </tbody>
-
           </table>
-
         </div>
       )}
 
@@ -724,274 +1006,286 @@ function ProductsPage() {
           }
         }}
       >
-
         <DialogContent className="sm:max-w-[700px]">
-
           <DialogHeader>
+            <DialogTitle>Create Product</DialogTitle>
 
-            <DialogTitle>
-              Create Product
-            </DialogTitle>
-
-            <DialogDescription>
-              Add a new product to the product catalog.
-            </DialogDescription>
-
+            <DialogDescription>Add a new product to the product catalog.</DialogDescription>
           </DialogHeader>
 
-          <form
-            className="space-y-5"
-            onSubmit={handleSubmit}
-          >
-
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
-
               {/* CATEGORY */}
 
               <div className="space-y-2">
-
-                <Label htmlFor="product-category">
-                  Category
-                </Label>
+                <Label htmlFor="product-category">Category</Label>
 
                 <select
                   id="product-category"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={
-                    productForm.category
-                  }
+                  value={productForm.category}
                   onChange={(event) =>
                     setProductForm({
                       ...productForm,
-                      category:
-                        event.target.value,
+                      category: event.target.value,
                     })
                   }
                   required
                 >
+                  <option value="">Select category</option>
 
-                  <option value="">
-                    Select category
-                  </option>
-
-                  {categories.map(
-                    (category) => (
-                      <option
-                        key={category}
-                        value={category}
-                      >
-                        {category}
-                      </option>
-                    ),
-                  )}
-
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
                 </select>
-
               </div>
 
               {/* CUSTOMER SELL CODE */}
 
               <div className="space-y-2">
+                <Label htmlFor="product-customer-sell-code">Customer Sell Code</Label>
 
-                <Label htmlFor="product-customer-sell-code">
-                  Customer Sell Code
-                </Label>
+                {isSa ? (
+                  <select
+                    id="product-customer-sell-code"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={productForm.customerSellCode}
+                    onChange={(event) =>
+                      setProductForm({
+                        ...productForm,
+                        customerSellCode: event.target.value,
+                      })
+                    }
+                    required
+                  >
+                    <option value="">Select customer sell code</option>
 
-                <select
-                  id="product-customer-sell-code"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={
-                    productForm.customerSellCode
-                  }
-                  onChange={(event) =>
-                    setProductForm({
-                      ...productForm,
-                      customerSellCode:
-                        event.target.value,
-                    })
-                  }
-                  required
-                >
-
-                  <option value="">
-                    Select customer sell code
-                  </option>
-
-                  {sellCodes.map((item) => (
-                    <option
-                      key={
-                        item.id ??
-                        item.code
-                      }
-                      value={item.code}
-                    >
-                      {item.code}
-                      {item.name
-                        ? ` - ${item.name}`
-                        : ""}
-                    </option>
-                  ))}
-
-                </select>
-
+                    {sellCodes.map((item) => (
+                      <option key={item.id ?? item.code} value={item.code}>
+                        {item.code}
+                        {item.name ? ` - ${item.name}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    id="product-customer-sell-code"
+                    value={productForm.customerSellCode || customerSellCode}
+                    readOnly
+                    required
+                  />
+                )}
               </div>
 
               {/* NAV ITEM CODE */}
 
               <div className="space-y-2">
-
-                <Label htmlFor="nav-item-code">
-                  Nav Item Code
-                </Label>
+                <Label htmlFor="nav-item-code">Nav Item Code</Label>
 
                 <Input
                   id="nav-item-code"
-                  value={
-                    productForm.navItemCode
-                  }
+                  value={productForm.navItemCode}
                   onChange={(event) =>
                     setProductForm({
                       ...productForm,
-                      navItemCode:
-                        event.target.value,
+                      navItemCode: event.target.value,
                     })
                   }
                   placeholder="Enter NAV item code"
                   required
                 />
-
               </div>
 
               {/* ITEM DESCRIPTION */}
 
               <div className="space-y-2">
-
-                <Label htmlFor="item-description">
-                  Item Description
-                </Label>
+                <Label htmlFor="item-description">Item Description</Label>
 
                 <Input
                   id="item-description"
-                  value={
-                    productForm.itemDescription
-                  }
+                  value={productForm.itemDescription}
                   onChange={(event) =>
                     setProductForm({
                       ...productForm,
-                      itemDescription:
-                        event.target.value,
+                      itemDescription: event.target.value,
                     })
                   }
                   placeholder="Enter item description"
                   required
                 />
-
               </div>
 
               {/* UOM */}
 
               <div className="space-y-2">
-
-                <Label htmlFor="product-uom">
-                  UOM
-                </Label>
+                <Label htmlFor="product-uom">UOM</Label>
 
                 <select
                   id="product-uom"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={
-                    productForm.uom
-                  }
+                  value={productForm.uom}
                   onChange={(event) =>
                     setProductForm({
                       ...productForm,
-                      uom:
-                        event.target.value,
+                      uom: event.target.value,
                     })
                   }
                   required
                 >
-
-                  <option value="">
-                    Select UOM
-                  </option>
+                  <option value="">Select UOM</option>
 
                   {uoms.map((uom) => (
-                    <option
-                      key={uom}
-                      value={uom}
-                    >
+                    <option key={uom} value={uom}>
                       {uom}
                     </option>
                   ))}
-
                 </select>
-
               </div>
 
               {/* UNIT RATE */}
 
               <div className="space-y-2">
-
-                <Label htmlFor="unit-rate">
-                  Unit Rate
-                </Label>
+                <Label htmlFor="unit-rate">Unit Rate</Label>
 
                 <Input
                   id="unit-rate"
                   type="number"
                   min="0"
                   step="0.01"
-                  value={
-                    productForm.unitRate
-                  }
+                  value={productForm.unitRate}
                   onChange={(event) =>
                     setProductForm({
                       ...productForm,
-                      unitRate:
-                        Number(
-                          event.target.value,
-                        ),
+                      unitRate: Number(event.target.value),
                     })
                   }
                   placeholder="Enter unit rate"
                   required
                 />
-
               </div>
 
+              <div className="space-y-3 sm:col-span-2">
+                <Label htmlFor="product-image">Product Image</Label>
+
+                <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
+                  <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-md border border-border bg-surface">
+                    {productImagePreviewUrl ? (
+                      <img
+                        src={productImagePreviewUrl}
+                        alt="Selected product"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <Input
+                      key={productImageInputKey}
+                      id="product-image"
+                      type="file"
+                      accept={productImageExtensions.join(",")}
+                      onChange={handleProductImageChange}
+                    />
+
+                    <p className="text-xs text-muted-foreground">
+                      Optional JPG, JPEG, PNG, WEBP, or GIF image.
+                    </p>
+
+                    {productImageFile ? (
+                      <SelectedFileRow
+                        icon={<ImageIcon className="h-4 w-4" />}
+                        label={productImageFile.name}
+                        onRemove={removeProductImage}
+                      />
+                    ) : null}
+
+                    {productImageError ? (
+                      <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        {productImageError}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <DialogFooter>
+            {productMessage?.tone === "destructive" ? (
+              <FormMessageBanner message={productMessage} />
+            ) : null}
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-              >
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
 
               <Button
                 type="submit"
-                disabled={
-                  createProduct.isPending
-                }
+                disabled={createProduct.isPending || Boolean(productImageError)}
               >
-                {createProduct.isPending
-                  ? "Creating..."
-                  : "Create Product"}
+                {createProduct.isPending ? "Creating..." : "Create Product"}
               </Button>
-
             </DialogFooter>
-
           </form>
-
         </DialogContent>
-
       </Dialog>
-
     </div>
+  );
+}
+
+function FormMessageBanner({ message }: { message: FormMessage }) {
+  const toneClasses =
+    message.tone === "success"
+      ? "border-success/25 bg-success/10 text-success"
+      : "border-destructive/25 bg-destructive/10 text-destructive";
+
+  return <div className={`rounded-md border px-3 py-2 text-sm ${toneClasses}`}>{message.text}</div>;
+}
+
+function SelectedFileRow({
+  icon,
+  label,
+  onRemove,
+}: {
+  icon: ReactNode;
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex min-h-9 items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs">
+      <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onRemove}>
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function ProductImageThumbnail({ product }: { product: ProductResponse }) {
+  const [failed, setFailed] = useState(false);
+  const src = product.imagePath && !failed ? getApiAssetUrl(product.imagePath) : "";
+
+  if (!src) {
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground">
+        <ImageIcon className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={product.itemDescription || "Product image"}
+      className="h-12 w-12 rounded-md border border-border object-cover"
+      onError={() => setFailed(true)}
+    />
   );
 }
 
@@ -1000,8 +1294,5 @@ function formatMoney(value?: number) {
     return "-";
   }
 
-  return `INR ${value.toLocaleString(
-    "en-IN",
-  )}`;
+  return `INR ${value.toLocaleString("en-IN")}`;
 }
-
