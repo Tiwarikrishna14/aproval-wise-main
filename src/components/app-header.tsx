@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
+import { isCustomerAccountUser } from "@/lib/permissions";
 
 const titles: Record<string, string> = {
   "/": "Dashboard",
@@ -43,6 +44,20 @@ function titleFor(pathname: string) {
   return "Dashboard";
 }
 
+function hasRole(userRoles: string[] | undefined, roleName: string) {
+  return userRoles?.some((role) => role.toUpperCase() === roleName) ?? false;
+}
+
+function isCustomerScopedUser(user: ReturnType<typeof useAuth>["user"]) {
+  const userType = user?.userType?.toUpperCase();
+
+  return (
+    userType === "CUSTOMER" ||
+    hasRole(user?.roles, "CUSTOMER") ||
+    hasRole(user?.roles, "CUSTOMER_ADMIN")
+  );
+}
+
 export function Header() {
   const { roleMeta } = useRole();
   const { user, logout } = useAuth();
@@ -52,7 +67,13 @@ export function Header() {
   const displayName = user?.name ?? "User";
   const displayEmail = user?.email ?? "";
   const initials = user?.initials ?? "U";
-  const organizationLabel =  user?.userType === "customer" && user?.organizationName ? `Org ${user.organizationName}` : "";
+  const hideHeaderSearch = isCustomerAccountUser(user) && pathname === "/products";
+  const organizationLabel = user?.organizationName || "Organization";
+  const scopedLabel = isCustomerScopedUser(user)
+    ? user?.businessCustomerName || "Business customer"
+    : user?.branchId
+      ? user?.branchName || "Assigned branch"
+      : "";
 
   async function handleLogout() {
     await logout();
@@ -64,30 +85,31 @@ export function Header() {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-3">
           <h1 className="truncate text-[17px] font-semibold tracking-tight">{title}</h1>
-          {organizationLabel && (
-            <Badge
-              variant="secondary"
-              className="hidden sm:inline-flex bg-secondary text-secondary-foreground text-[11px] font-medium"
-            >
-              {organizationLabel}
-            </Badge>
-          )}
         </div>
       </div>
 
-      <div className="hidden md:flex relative w-[320px] shrink-0">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
-          placeholder="Search orders, products, customers…"
-        />
-      </div>
+      {!hideHeaderSearch ? (
+        <div className="hidden md:flex relative w-[320px] shrink-0">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+            placeholder="Search orders, products, customers..."
+          />
+        </div>
+      ) : null}
 
       <Badge
         variant="secondary"
-        className="hidden sm:inline-flex bg-secondary text-secondary-foreground text-[11px] font-medium"
+        className="hidden h-auto max-w-[220px] flex-col items-start gap-0.5 bg-secondary px-2.5 py-1 text-secondary-foreground sm:inline-flex"
       >
-        {roleMeta.badge}
+        <span className="max-w-full truncate text-[11px] font-semibold leading-tight">
+          {organizationLabel}
+        </span>
+        {scopedLabel ? (
+          <span className="max-w-full truncate text-[10px] font-medium leading-tight text-muted-foreground">
+            {scopedLabel}
+          </span>
+        ) : null}
       </Badge>
 
       <Link

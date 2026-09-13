@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth-context";
+import { isCustomerAccountUser } from "@/lib/permissions";
 
 function FullPageLoader() {
   return (
@@ -15,8 +16,10 @@ function FullPageLoader() {
 export function AuthGate() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const { isReady, isAuthenticated } = useAuth();
+  const { isReady, isAuthenticated, user } = useAuth();
   const isLoginPage = pathname === "/login";
+  const isCustomerAccount = isCustomerAccountUser(user);
+  const isCustomerManagementPath = pathname === "/customers" || pathname.startsWith("/customers/");
 
   useEffect(() => {
     if (!isReady) return;
@@ -27,13 +30,26 @@ export function AuthGate() {
     }
 
     if (isAuthenticated && isLoginPage) {
-      navigate({ to: "/", replace: true });
+      navigate({ to: isCustomerAccount ? "/products" : "/", replace: true });
+      return;
     }
-  }, [isAuthenticated, isLoginPage, isReady, navigate]);
+
+    if (isAuthenticated && isCustomerAccount && isCustomerManagementPath) {
+      navigate({ to: "/products", replace: true });
+    }
+  }, [
+    isCustomerAccount,
+    isCustomerManagementPath,
+    isAuthenticated,
+    isLoginPage,
+    isReady,
+    navigate,
+  ]);
 
   if (!isReady) return <FullPageLoader />;
   if (!isAuthenticated && !isLoginPage) return <FullPageLoader />;
   if (isLoginPage) return <Outlet />;
+  if (isCustomerAccount && isCustomerManagementPath) return <FullPageLoader />;
 
   return (
     <AppShell>

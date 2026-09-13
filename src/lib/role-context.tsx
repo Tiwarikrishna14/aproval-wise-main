@@ -21,7 +21,8 @@ const RoleContext = createContext<Ctx | null>(null);
 
 function prettifyBackendRole(role: string) {
   if (role === "SUPER_ADMIN") return "Super Admin";
-  if (role === "CUSTOMER_ADMIN" || role === "ORGANIZATION_ADMIN") return "Customer Admin";
+  if (role === "CUSTOMER_ADMIN") return "Customer Admin";
+  if (role === "ORGANIZATION_ADMIN") return "Organization Admin";
 
   return role
     .toLowerCase()

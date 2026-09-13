@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import {
+  branchesApi,
   organizationsApi,
   usersApi,
   type OrganizationResponse,
@@ -61,6 +62,7 @@ function SettingsPage() {
   const { user, refreshSession } = useAuth();
   const userId = user?.id ?? "";
   const organizationId = user?.organizationId ?? "";
+  const branchId = user?.branchId ?? "";
   const canViewUser = hasPermission(user, "USER_VIEW") || hasPermission(user, "USER_UPDATE");
   const canUpdateUser = hasPermission(user, "USER_UPDATE");
   const canViewOrganization =
@@ -86,9 +88,25 @@ function SettingsPage() {
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const branchQuery = useQuery({
+    queryKey: ["settings", "branch", branchId],
+    queryFn: async () => (await branchesApi.get(branchId)).data,
+    enabled: Boolean(branchId && !user?.branchName),
+    staleTime: 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   const profile = profileQuery.data;
   const organization = organizationQuery.data;
+  const organizationDisplayName =
+    organization?.name ||
+    user?.organizationName ||
+    (organizationId ? "Assigned organization" : "-");
+  const branchDisplayName =
+    user?.branchName ||
+    branchQuery.data?.name ||
+    (branchId ? "Assigned branch" : "Organization-wide");
 
   useEffect(() => {
     setProfileForm(profileFormFromUser(profile, user));
@@ -188,7 +206,9 @@ function SettingsPage() {
           <div>
             <div className="text-lg font-semibold">{user?.name ?? "User"}</div>
             <div className="text-sm text-muted-foreground">
-              {[user?.role, user?.organizationId].filter(Boolean).join(" - ") || "Profile"}
+              {[user?.role, organizationDisplayName === "-" ? undefined : organizationDisplayName]
+                .filter(Boolean)
+                .join(" - ") || "Profile"}
             </div>
           </div>
           <Button variant="outline" className="ml-auto" disabled>
@@ -237,8 +257,8 @@ function SettingsPage() {
             />
           </Field>
           <ReadOnlyField label="Role" value={user?.role ?? ""} />
-          <ReadOnlyField label="Organization ID" value={organizationId} />
-          <ReadOnlyField label="Branch ID" value={user?.branchId || "Organization-wide"} />
+          <ReadOnlyField label="Organization" value={organizationDisplayName} />
+          <ReadOnlyField label="Branch" value={branchDisplayName} />
         </div>
 
         {!canUpdateUser ? (

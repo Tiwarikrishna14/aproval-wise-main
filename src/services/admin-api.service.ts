@@ -50,8 +50,10 @@ export type UpdateOrganizationRequest = {
 export type UserResponse = {
   id: string;
   organizationId: string;
-  branchId?: string;
-  businessCustomerId?: string;
+  branchId?: string | null;
+  businessCustomerId?: string | null;
+  businessCustomerLocationId?: string | null;
+  userType: "EMPLOYEE" | "CUSTOMER";
   firstName: string;
   lastName: string;
   email: string;
@@ -66,6 +68,7 @@ export type UserResponse = {
 
 export type CreateUserRequest = {
   organizationId?: string;
+  userType: "EMPLOYEE" | "CUSTOMER";
   branchId?: string;
   businessCustomerId?: string;
   firstName: string;
@@ -81,6 +84,10 @@ export type UpdateUserRequest = {
   lastName: string;
   email?: string;
   phone?: string;
+};
+
+export type UserListQuery = PageableQuery & {
+  branchId?: string;
 };
 
 export type RoleResponse = {
@@ -127,12 +134,21 @@ function buildSearchParams(query: PageableQuery = {}) {
 }
 
 export const usersApi = {
-  list: (query?: PageableQuery) =>
-    apiGet<ApiEnvelope<PageResponse<UserResponse>>>(`/api/users?${buildSearchParams(query)}`),
+  list: (query?: UserListQuery) => {
+    const params = new URLSearchParams(buildSearchParams(query));
+    if (query?.branchId) params.set("branchId", query.branchId);
+
+    return apiGet<ApiEnvelope<PageResponse<UserResponse>>>(`/api/users?${params.toString()}`);
+  },
   get: (id: string) => apiGet<ApiEnvelope<UserResponse>>(`/api/users/${id}`),
   create: (body: CreateUserRequest) => apiPost<ApiEnvelope<UserResponse>>("/api/users", body),
   update: (id: string, body: UpdateUserRequest) =>
     apiPut<ApiEnvelope<UserResponse>>(`/api/users/${id}`, body),
+  assignRolesToUser: (userId: string, roleIds: string[]) =>
+    apiPost<ApiEnvelope<UserResponse>>(`/api/users/${userId}/roles`, { roleIds }),
+  revokeUserRole: (userId: string, roleId: string) =>
+    apiDelete<ApiEnvelope<UserResponse>>(`/api/users/${userId}/roles/${roleId}`),
+  deleteUser: (userId: string) => apiDelete<ApiEnvelope<UserResponse>>(`/api/users/${userId}`),
 };
 
 export const rolesApi = {
@@ -295,12 +311,16 @@ export const productsApi = {
   list: (
     query?: {
       customerSellCode?: string;
+      businessCustomerId?: string;
     } & PageableQuery,
   ) => {
     const params = new URLSearchParams(buildSearchParams(query));
 
     if (query?.customerSellCode) {
       params.set("customerCode", query.customerSellCode);
+    }
+    if (query?.businessCustomerId) {
+      params.set("businessCustomerId", query.businessCustomerId);
     }
 
     return apiPost<ApiEnvelope<PageResponse<ProductResponse> | ProductResponse[]>>(

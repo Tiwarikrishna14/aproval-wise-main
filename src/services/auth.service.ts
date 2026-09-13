@@ -19,7 +19,12 @@ export type AuthUser = {
   organizationName?: string;
   userType?: string;
   branchId?: string;
+  branchName?: string;
   businessCustomerId?: string;
+  businessCustomerName?: string;
+  businessCustomerCode?: string;
+  customerCode?: string;
+  customerSellCode?: string;
   roles?: string[];
   permissions?: string[];
 };
@@ -48,7 +53,14 @@ type BackendUser = {
   organizationName?: unknown;
   userType?: unknown;
   branchId?: unknown;
+  branchName?: unknown;
   businessCustomerId?: unknown;
+  businessCustomerName?: unknown;
+  businessCustomerCode?: unknown;
+  customerCode?: unknown;
+  customerSellCode?: unknown;
+  businessCustomer?: unknown;
+  customer?: unknown;
   roles?: unknown;
   permissions?: unknown;
 };
@@ -76,6 +88,14 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 function initialsFromName(name: string) {
   const initials = name
     .split(/\s+/)
@@ -87,16 +107,39 @@ function initialsFromName(name: string) {
   return initials || "U";
 }
 
-function roleFromBackend(roles: string[], permissions: string[]): Role {
-  if (roles.some((role) => role.includes("ADMIN")) || permissions.includes("USER_VIEW")) {
+function roleFromBackend(roles: string[], permissions: string[], userType?: string): Role {
+  const normalizedRoles = roles.map((role) => role.toUpperCase());
+  const normalizedUserType = userType?.toUpperCase();
+  const isCustomerRole = normalizedRoles.some(
+    (role) => role === "CUSTOMER" || role === "CUSTOMER_ADMIN" || role === "CUSTOMER_EMPLOYEE",
+  );
+  const hasNonCustomerAdminRole = normalizedRoles.some(
+    (role) =>
+      role === "SUPER_ADMIN" ||
+      role === "ORG_ADMIN" ||
+      role === "ORGANIZATION_ADMIN" ||
+      role === "BRANCH_ADMIN",
+  );
+
+  if ((normalizedUserType === "CUSTOMER" || isCustomerRole) && !hasNonCustomerAdminRole) {
+    return "customer";
+  }
+
+  if (normalizedRoles.some((role) => role.includes("ADMIN")) || permissions.includes("USER_VIEW")) {
     return "admin";
   }
 
-  if (roles.some((role) => role.includes("APPROVER")) || permissions.includes("ORDER_APPROVE")) {
+  if (
+    normalizedRoles.some((role) => role.includes("APPROVER")) ||
+    permissions.includes("ORDER_APPROVE")
+  ) {
     return "approver";
   }
 
-  if (roles.some((role) => role.includes("VERIFIER")) || permissions.includes("INVENTORY_UPDATE")) {
+  if (
+    normalizedRoles.some((role) => role.includes("VERIFIER")) ||
+    permissions.includes("INVENTORY_UPDATE")
+  ) {
     return "verifier";
   }
 
@@ -111,6 +154,17 @@ function normalizeUser(user: BackendUser): AuthUser {
   const name = providedName || `${firstName} ${lastName}`.trim() || email || "User";
   const roles = isStringArray(user.roles) ? user.roles : [];
   const permissions = isStringArray(user.permissions) ? user.permissions : [];
+  const userType = stringValue(user.userType);
+  const businessCustomerRecord = isRecord(user.businessCustomer) ? user.businessCustomer : {};
+  const customerRecord = isRecord(user.customer) ? user.customer : {};
+  const customerCode =
+    stringValue(user.customerCode) ||
+    stringValue(user.customerSellCode) ||
+    stringValue(user.businessCustomerCode) ||
+    stringValue(businessCustomerRecord.customerCode) ||
+    stringValue(businessCustomerRecord.customerSellCode) ||
+    stringValue(customerRecord.customerCode) ||
+    stringValue(customerRecord.customerSellCode);
   const existingRole =
     user.role === "customer" ||
     user.role === "admin" ||
@@ -124,13 +178,22 @@ function normalizeUser(user: BackendUser): AuthUser {
     name,
     email,
     initials: initialsFromName(name),
-    role: existingRole ?? roleFromBackend(roles, permissions),
+    role: existingRole ?? roleFromBackend(roles, permissions, userType),
     organizationId: typeof user.organizationId === "string" ? user.organizationId : undefined,
     organizationName: typeof user.organizationName === "string" ? user.organizationName : undefined,
-    userType: typeof user.userType === "string" ? user.userType : undefined,
+    userType,
     branchId: typeof user.branchId === "string" ? user.branchId : undefined,
+    branchName: typeof user.branchName === "string" ? user.branchName : undefined,
     businessCustomerId:
-      typeof user.businessCustomerId === "string" ? user.businessCustomerId : undefined,
+      stringValue(user.businessCustomerId) || stringValue(businessCustomerRecord.id),
+    businessCustomerName:
+      stringValue(user.businessCustomerName) || stringValue(businessCustomerRecord.name),
+    businessCustomerCode:
+      stringValue(user.businessCustomerCode) ||
+      stringValue(businessCustomerRecord.customerCode) ||
+      customerCode,
+    customerCode,
+    customerSellCode: stringValue(user.customerSellCode) || customerCode,
     roles,
     permissions,
   };
@@ -214,7 +277,12 @@ function compactUser(user: AuthUser): AuthUser {
     organizationName: user.organizationName,
     userType: user.userType,
     branchId: user.branchId,
+    branchName: user.branchName,
     businessCustomerId: user.businessCustomerId,
+    businessCustomerName: user.businessCustomerName,
+    businessCustomerCode: user.businessCustomerCode,
+    customerCode: user.customerCode,
+    customerSellCode: user.customerSellCode,
     roles: user.roles,
     permissions: user.permissions,
   };

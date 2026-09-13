@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission, isSuperAdmin } from "@/lib/permissions";
+import { hasPermission, isCustomerAccountUser, isSuperAdmin } from "@/lib/permissions";
 import {
   branchRecords,
   branchesApi,
@@ -56,12 +56,14 @@ export const Route = createFileRoute("/customers")({
 function CustomersPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const canView = hasPermission(user, "CUSTOMER_VIEW");
-  const canCreate = hasPermission(user, "CUSTOMER_CREATE");
+  const isCustomerAccount = isCustomerAccountUser(user);
+  const canView = !isCustomerAccount && hasPermission(user, "CUSTOMER_VIEW");
+  const canCreate = !isCustomerAccount && hasPermission(user, "CUSTOMER_CREATE");
   const isSa = isSuperAdmin(user);
   const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
   const [branchId, setBranchId] = useState(user?.branchId ?? "");
   const isBranchScopedUser = !isSa && Boolean(user?.branchId);
+  const canChooseCustomerBranch = isSa || !isBranchScopedUser;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [pincodeStatus, setPincodeStatus] = useState("");
@@ -134,6 +136,21 @@ function CustomersPage() {
     retry: false,
     staleTime: 60 * 1000,
   });
+  const assignedOrganizationQuery = useQuery({
+    queryKey: ["admin", "customers", "assigned-organization", user?.organizationId],
+    queryFn: async () => (await organizationsApi.get(user?.organizationId ?? "")).data,
+    enabled:
+      !isSa && Boolean(user?.organizationId) && !user?.organizationName && (canView || canCreate),
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const assignedBranchQuery = useQuery({
+    queryKey: ["admin", "customers", "assigned-branch", user?.branchId],
+    queryFn: async () => (await branchesApi.get(user?.branchId ?? "")).data,
+    enabled: Boolean(user?.branchId) && !user?.branchName && (canView || canCreate),
+    retry: false,
+    staleTime: 60 * 1000,
+  });
   const branches = branchRecords(branchesQuery.data);
   const organizations = (organizationsQuery.data ?? []).filter(
     (organization) => organization.organizationType === "PARENT",
@@ -142,6 +159,28 @@ function CustomersPage() {
     (organizationsQuery.data ?? []).map((organization) => [organization.id, organization.name]),
   );
   const branchesById = new Map(branches.map((branch) => [branch.id, branch]));
+  const organizationLabel = (id?: string | null) => {
+    if (!id) return "-";
+
+    return (
+      organizationsById.get(id) ||
+      (id === user?.organizationId
+        ? user?.organizationName || assignedOrganizationQuery.data?.name || "Assigned organization"
+        : undefined) ||
+      "Unknown organization"
+    );
+  };
+  const branchLabel = (id?: string | null) => {
+    if (!id) return "-";
+
+    return (
+      branchesById.get(id)?.name ||
+      (id === user?.branchId
+        ? user?.branchName || assignedBranchQuery.data?.name || "Assigned branch"
+        : undefined) ||
+      "Unknown branch"
+    );
+  };
   const customers = Array.isArray(customersQuery.data)
     ? customersQuery.data
     : (customersQuery.data?.content ?? []);
@@ -276,16 +315,14 @@ function CustomersPage() {
                     <td className="px-4 py-3 text-muted-foreground">{customer.customerCode}</td>
                     <td className="px-4 py-3">
                       <div>
-                        {organizationsById.get(
+                        {organizationLabel(
                           customer.organizationId ||
                             branchesById.get(customer.branchId)?.organizationId ||
-                            "",
-                        ) ||
-                          customer.organizationId ||
-                          "-"}
+                            user?.organizationId,
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {branchesById.get(customer.branchId)?.name || customer.branchId}
+                        {branchLabel(customer.branchId)}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -328,8 +365,8 @@ function CustomersPage() {
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={submit}>
-            <Field label="Organization" id="create-customer-organization">
-              {isSa ? (
+            {isSa ? (
+              <Field label="Organization" id="create-customer-organization">
                 <select
                   id="create-customer-organization"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -347,29 +384,16 @@ function CustomersPage() {
                     </option>
                   ))}
                 </select>
-              ) : (
-                <Input
-                  id="create-customer-organization"
-                  value={organizationId || "Assigned organization"}
-                  readOnly
-                  required
-                />
-              )}
-            </Field>
-            <Field label="Managing Branch" id="create-customer-branch">
-              {isBranchScopedUser ? (
-                <Input
-                  id="create-customer-branch"
-                  value={branchesById.get(branchId)?.name || branchId}
-                  readOnly
-                  required
-                />
-              ) : (
+              </Field>
+            ) : null}
+            {canChooseCustomerBranch ? (
+              <Field label="Managing Branch" id="create-customer-branch">
                 <select
                   id="create-customer-branch"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
+                  disabled={!organizationId || branchesQuery.isLoading}
                   required
                 >
                   <option value="">Select branch</option>
@@ -379,8 +403,8 @@ function CustomersPage() {
                     </option>
                   ))}
                 </select>
-              )}
-            </Field>
+              </Field>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Customer Code" id="customer-code">
                 <Input

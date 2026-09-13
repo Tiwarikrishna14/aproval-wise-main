@@ -24,7 +24,12 @@ import {
 } from "lucide-react";
 import { Logo } from "./logo";
 import { useRole, type Role } from "@/lib/role-context";
-import { hasAnyPermission, hasPermission, isSuperAdmin } from "@/lib/permissions";
+import {
+  hasAnyPermission,
+  hasPermission,
+  isCustomerAccountUser,
+  isSuperAdmin,
+} from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import type { AuthUser } from "@/services/auth.service";
@@ -40,6 +45,7 @@ type NavItem = {
 
 const customerNav: NavItem[] = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
+  { label: "Products", to: "/products", icon: Package },
   { label: "My Orders", to: "/orders", icon: ShoppingCart },
   { label: "My Inventory", to: "/inventory", icon: Boxes },
   { label: "Stock Requests", to: "/stock-requests", icon: ClipboardList },
@@ -50,8 +56,18 @@ const customerNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
-  { label: "Organizations", to: "/organizations", icon: Building2, anyPermission: ["ORGANIZATION_VIEW", "ORGANIZATION_CREATE"] },
-  { label: "Branches", to: "/branches", icon: GitBranch, anyPermission: ["BRANCH_VIEW", "BRANCH_CREATE"] },
+  {
+    label: "Organizations",
+    to: "/organizations",
+    icon: Building2,
+    anyPermission: ["ORGANIZATION_VIEW", "ORGANIZATION_CREATE"],
+  },
+  {
+    label: "Branches",
+    to: "/branches",
+    icon: GitBranch,
+    anyPermission: ["BRANCH_VIEW", "BRANCH_CREATE"],
+  },
   { label: "Orders", to: "/orders", icon: ShoppingCart, permission: "ORDER_VIEW" },
   {
     label: "Approval Queue",
@@ -71,7 +87,12 @@ const adminNav: NavItem[] = [
     icon: ClipboardList,
     permission: "STOCK_REQUEST_VIEW",
   },
-  { label: "Customers", to: "/customers", icon: Users, anyPermission: ["CUSTOMER_VIEW", "CUSTOMER_CREATE"] },
+  {
+    label: "Customers",
+    to: "/customers",
+    icon: Users,
+    anyPermission: ["CUSTOMER_VIEW", "CUSTOMER_CREATE"],
+  },
   { label: "Users", to: "/users", icon: UserCircle, permission: "USER_VIEW" },
   { label: "Products", to: "/products", icon: Package, permission: "PRODUCT_VIEW" },
   { label: "Workflow Setup", to: "/workflows", icon: Workflow },
@@ -142,6 +163,7 @@ function navForRole(role: Role): NavItem[] {
 }
 
 function canSeeNavItem(item: NavItem, user: AuthUser | null) {
+  if (isCustomerAccountUser(user) && item.to === "/customers") return false;
   if (item.superAdminOnly && !isSuperAdmin(user)) return false;
   if (item.permission && !hasPermission(user, item.permission)) return false;
   if (item.anyPermission && !hasAnyPermission(user, item.anyPermission)) return false;

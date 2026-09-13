@@ -57,7 +57,7 @@ import {
 import { getApiAssetUrl } from "@/services/api-client";
 
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission, isSuperAdmin } from "@/lib/permissions";
+import { hasPermission, isCustomerProductOnlyUser, isSuperAdmin } from "@/lib/permissions";
 
 export const Route = createFileRoute("/products")({
   head: () => ({
@@ -710,12 +710,18 @@ function ProductsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const canView = hasPermission(user, "PRODUCT_VIEW");
-  const canCreate = hasPermission(user, "PRODUCT_CREATE");
+  const productOnlyCustomer = isCustomerProductOnlyUser(user);
+  const canView = productOnlyCustomer || hasPermission(user, "PRODUCT_VIEW");
+  const canCreate = !productOnlyCustomer && hasPermission(user, "PRODUCT_CREATE");
   const isSa = isSuperAdmin(user);
-  const canEditProducts = isSa || canCreate || hasPermission(user, "PRODUCT_UPDATE");
-  const canDeleteProducts = isSa || canCreate || hasPermission(user, "PRODUCT_DELETE");
+  const canManageProductRows = !productOnlyCustomer;
+  const canEditProducts =
+    canManageProductRows && (isSa || canCreate || hasPermission(user, "PRODUCT_UPDATE"));
+  const canDeleteProducts =
+    canManageProductRows && (isSa || canCreate || hasPermission(user, "PRODUCT_DELETE"));
   const assignedBusinessCustomerId = isSa ? undefined : user?.businessCustomerId;
+  const authCustomerSellCode =
+    user?.customerSellCode || user?.customerCode || user?.businessCustomerCode || "";
 
   /*
    * ============================================================
@@ -868,6 +874,7 @@ function ProductsPage() {
     },
 
     enabled:
+      !productOnlyCustomer &&
       (canView || canCreate) &&
       (isSa
         ? Boolean(organizationId) && Boolean(branchId)
@@ -904,23 +911,42 @@ function ProductsPage() {
 
   const assignedCustomerSellCode = !isSa && sellCodes.length === 1 ? sellCodes[0].code : "";
   const canChooseScopedCustomerSellCode = !isSa && sellCodes.length > 1;
+  const productQueryBusinessCustomerId = productOnlyCustomer ? assignedBusinessCustomerId : "";
+  const productQueryCustomerSellCode = productOnlyCustomer
+    ? authCustomerSellCode
+    : customerSellCode;
+  const canLoadProducts = productOnlyCustomer
+    ? Boolean(productQueryBusinessCustomerId || productQueryCustomerSellCode)
+    : Boolean(customerSellCode);
 
   const productFetchQuery = useQuery({
-    queryKey: ["admin", "product-list", customerSellCode, productPage, productPageSize],
+    queryKey: [
+      "admin",
+      "product-list",
+      productQueryCustomerSellCode,
+      productQueryBusinessCustomerId,
+      productPage,
+      productPageSize,
+    ],
     queryFn: async () =>
       (
         await productsApi.list({
           page: productPage,
           size: productPageSize,
-          customerSellCode,
+          customerSellCode: productQueryCustomerSellCode || undefined,
+          businessCustomerId: productQueryBusinessCustomerId || undefined,
         })
       ).data,
-    enabled: Boolean(customerSellCode) && (canView || canCreate),
+    enabled: canLoadProducts && (canView || canCreate),
     retry: false,
     staleTime: 60 * 1000,
   });
   const products = productRecords(productFetchQuery.data).filter(
-    (product) => isSa || product.customerSellCode === customerSellCode,
+    (product) =>
+      isSa ||
+      (productOnlyCustomer
+        ? !productQueryCustomerSellCode || product.customerSellCode === productQueryCustomerSellCode
+        : product.customerSellCode === customerSellCode),
   );
   const pageResponse = productPageResponse(productFetchQuery.data);
   const totalElements = pageResponse?.totalElements ?? products.length;
@@ -945,6 +971,7 @@ function ProductsPage() {
     totalElements === 0
       ? 0
       : Math.min(productPage * productPageSize + products.length, totalElements);
+  const productTableColumnCount = canManageProductRows ? 10 : 8;
 
   useEffect(() => {
     if (!productImageFile) {
@@ -1609,167 +1636,83 @@ function ProductsPage() {
           FILTER SECTION
           ====================================================== */}
 
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* ==================================================
+      {!productOnlyCustomer ? (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* ==================================================
               ORGANIZATION
               Super Admin ONLY
               ================================================== */}
 
-          {isSa && (
-            <div className="space-y-2">
-              <Label htmlFor="customer-organization">Parent Organization</Label>
+            {isSa && (
+              <div className="space-y-2">
+                <Label htmlFor="customer-organization">Parent Organization</Label>
 
-              <select
-                id="customer-organization"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={organizationId}
-                onChange={(event) => handleOrganizationChange(event.target.value)}
-              >
-                <option value="">Select organization</option>
+                <select
+                  id="customer-organization"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={organizationId}
+                  onChange={(event) => handleOrganizationChange(event.target.value)}
+                >
+                  <option value="">Select organization</option>
 
-                {(organizationsQuery.data ?? []).map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name} ({organization.organizationCode})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+                  {(organizationsQuery.data ?? []).map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organization.name} ({organization.organizationCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-          {/* ==================================================
+            {/* ==================================================
               BRANCH
               Super Admin ONLY
               ================================================== */}
 
-          {isSa && (
-            <div className="space-y-2">
-              <Label htmlFor="customer-branch">Branch</Label>
+            {isSa && (
+              <div className="space-y-2">
+                <Label htmlFor="customer-branch">Branch</Label>
 
-              <select
-                id="customer-branch"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={branchId}
-                onChange={(event) => handleBranchChange(event.target.value)}
-                disabled={!organizationId}
-              >
-                <option value="">Select branch</option>
+                <select
+                  id="customer-branch"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={branchId}
+                  onChange={(event) => handleBranchChange(event.target.value)}
+                  disabled={!organizationId}
+                >
+                  <option value="">Select branch</option>
 
-                {branches.map((branch: BranchResponse) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                    {branch.branchCode ? ` (${branch.branchCode})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+                  {branches.map((branch: BranchResponse) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                      {branch.branchCode ? ` (${branch.branchCode})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-          {/* ==================================================
+            {/* ==================================================
               CUSTOMER SELL CODE
               ================================================== */}
 
-          <div className="space-y-2">
-            <Label htmlFor="customer-sell-code-filter">Customer Sell Code</Label>
-
-            {isSa || canChooseScopedCustomerSellCode ? (
-              <select
-                id="customer-sell-code-filter"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={customerSellCode}
-                onChange={(event) => setCustomerSellCode(event.target.value)}
-                disabled={
-                  customersQuery.isLoading ||
-                  (isSa ? !organizationId || !branchId : sellCodes.length === 0)
-                }
-              >
-                <option value="">Select customer sell code</option>
-
-                {sellCodes.map((item) => (
-                  <option key={item.id ?? item.code} value={item.code}>
-                    {item.code}
-                    {item.name ? ` - ${item.name}` : ""}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                id="customer-sell-code-filter"
-                value={customerSellCode}
-                placeholder={
-                  customersQuery.isLoading ? "Loading customer code..." : "Assigned customer code"
-                }
-                readOnly
-              />
-            )}
-
-            {customersQuery.isLoading && (
-              <p className="text-xs text-muted-foreground">Loading customer sell codes...</p>
-            )}
-
-            {!customersQuery.isLoading &&
-              isSa &&
-              organizationId &&
-              branchId &&
-              sellCodes.length === 0 && (
-                <p className="text-xs text-muted-foreground">No customer sell codes found.</p>
-              )}
-
-            {!customersQuery.isLoading && !isSa && sellCodes.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No customer sell codes found for your assigned organization or branch.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ====================================================
-            NORMAL USER MESSAGE
-            ==================================================== */}
-
-        {!isSa && (
-          <div className="mt-3 text-xs text-muted-foreground">
-            Organization and Branch are locked to your account. Customer Sell Code is limited to
-            your assigned scope.
-          </div>
-        )}
-      </div>
-
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Bulk Product Upload</h2>
-            <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-              The image column in the CSV or Excel file must exactly match uploaded image filenames.
-              Leave the image column blank when a product has no image.
-            </p>
-          </div>
-
-          <Button asChild variant="outline" size="sm">
-            <a href={bulkTemplateHref} download="product-upload-template.csv">
-              <Download className="mr-1.5 h-4 w-4" />
-              Template
-            </a>
-          </Button>
-        </div>
-
-        <form className="space-y-4" onSubmit={handleBulkSubmit}>
-          <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="bulk-customer-sell-code">Customer Sell Code</Label>
+              <Label htmlFor="customer-sell-code-filter">Customer Sell Code</Label>
+
               {isSa || canChooseScopedCustomerSellCode ? (
                 <select
-                  id="bulk-customer-sell-code"
+                  id="customer-sell-code-filter"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={bulkCustomerSellCode}
-                  onChange={(event) => setBulkCustomerSellCode(event.target.value)}
+                  value={customerSellCode}
+                  onChange={(event) => setCustomerSellCode(event.target.value)}
                   disabled={
                     customersQuery.isLoading ||
                     (isSa ? !organizationId || !branchId : sellCodes.length === 0)
                   }
-                  required
                 >
                   <option value="">Select customer sell code</option>
+
                   {sellCodes.map((item) => (
                     <option key={item.id ?? item.code} value={item.code}>
                       {item.code}
@@ -1779,74 +1722,162 @@ function ProductsPage() {
                 </select>
               ) : (
                 <Input
-                  id="bulk-customer-sell-code"
-                  value={bulkCustomerSellCode || customerSellCode}
+                  id="customer-sell-code-filter"
+                  value={customerSellCode}
+                  placeholder={
+                    customersQuery.isLoading ? "Loading customer code..." : "Assigned customer code"
+                  }
                   readOnly
-                  required
                 />
               )}
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="bulk-product-file">Product File</Label>
-              <Input
-                key={bulkProductFileInputKey}
-                id="bulk-product-file"
-                type="file"
-                accept=".csv,.xls,.xlsx"
-                onChange={handleBulkProductFileChange}
-                required={!bulkProductFile}
-              />
-              {bulkProductFile ? (
-                <SelectedFileRow
-                  icon={<FileSpreadsheet className="h-4 w-4" />}
-                  label={bulkProductFile.name}
-                  onRemove={removeBulkProductFile}
-                />
-              ) : null}
-            </div>
+              {customersQuery.isLoading && (
+                <p className="text-xs text-muted-foreground">Loading customer sell codes...</p>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="bulk-image-files">Images</Label>
-              <Input
-                key={bulkImageInputKey}
-                id="bulk-image-files"
-                type="file"
-                accept={productImageExtensions.join(",")}
-                multiple
-                onChange={handleBulkImagesChange}
-              />
-              {bulkImageFiles.length ? (
-                <div className="max-h-28 space-y-1 overflow-auto rounded-md border border-border p-2">
-                  {bulkImageFiles.map((file) => (
-                    <SelectedFileRow
-                      key={file.name}
-                      icon={<ImageIcon className="h-4 w-4" />}
-                      label={file.name}
-                      onRemove={() => removeBulkImage(file.name)}
-                    />
-                  ))}
-                </div>
-              ) : null}
+              {!customersQuery.isLoading &&
+                isSa &&
+                organizationId &&
+                branchId &&
+                sellCodes.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No customer sell codes found.</p>
+                )}
+
+              {!customersQuery.isLoading && !isSa && sellCodes.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No customer sell codes found for your assigned organization or branch.
+                </p>
+              )}
             </div>
           </div>
 
-          {bulkError ? (
-            <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {bulkError}
+          {/* ====================================================
+            NORMAL USER MESSAGE
+            ==================================================== */}
+
+          {!isSa && (
+            <div className="mt-3 text-xs text-muted-foreground">
+              Organization and Branch are locked to your account. Customer Sell Code is limited to
+              your assigned scope.
             </div>
-          ) : null}
+          )}
+        </div>
+      ) : null}
 
-          {bulkMessage ? <FormMessageBanner message={bulkMessage} /> : null}
+      {canCreate ? (
+        <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Bulk Product Upload</h2>
+              <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+                The image column in the CSV or Excel file must exactly match uploaded image
+                filenames. Leave the image column blank when a product has no image.
+              </p>
+            </div>
 
-          <div className="flex justify-end">
-            <Button type="submit" disabled={bulkUpload.isPending || (!isSa && !customerSellCode)}>
-              <Upload className="mr-1.5 h-4 w-4" />
-              {bulkUpload.isPending ? "Uploading..." : "Upload Products"}
+            <Button asChild variant="outline" size="sm">
+              <a href={bulkTemplateHref} download="product-upload-template.csv">
+                <Download className="mr-1.5 h-4 w-4" />
+                Template
+              </a>
             </Button>
           </div>
-        </form>
-      </section>
+
+          <form className="space-y-4" onSubmit={handleBulkSubmit}>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="bulk-customer-sell-code">Customer Sell Code</Label>
+                {isSa || canChooseScopedCustomerSellCode ? (
+                  <select
+                    id="bulk-customer-sell-code"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={bulkCustomerSellCode}
+                    onChange={(event) => setBulkCustomerSellCode(event.target.value)}
+                    disabled={
+                      customersQuery.isLoading ||
+                      (isSa ? !organizationId || !branchId : sellCodes.length === 0)
+                    }
+                    required
+                  >
+                    <option value="">Select customer sell code</option>
+                    {sellCodes.map((item) => (
+                      <option key={item.id ?? item.code} value={item.code}>
+                        {item.code}
+                        {item.name ? ` - ${item.name}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    id="bulk-customer-sell-code"
+                    value={bulkCustomerSellCode || customerSellCode}
+                    readOnly
+                    required
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-product-file">Product File</Label>
+                <Input
+                  key={bulkProductFileInputKey}
+                  id="bulk-product-file"
+                  type="file"
+                  accept=".csv,.xls,.xlsx"
+                  onChange={handleBulkProductFileChange}
+                  required={!bulkProductFile}
+                />
+                {bulkProductFile ? (
+                  <SelectedFileRow
+                    icon={<FileSpreadsheet className="h-4 w-4" />}
+                    label={bulkProductFile.name}
+                    onRemove={removeBulkProductFile}
+                  />
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-image-files">Images</Label>
+                <Input
+                  key={bulkImageInputKey}
+                  id="bulk-image-files"
+                  type="file"
+                  accept={productImageExtensions.join(",")}
+                  multiple
+                  onChange={handleBulkImagesChange}
+                />
+                {bulkImageFiles.length ? (
+                  <div className="max-h-28 space-y-1 overflow-auto rounded-md border border-border p-2">
+                    {bulkImageFiles.map((file) => (
+                      <SelectedFileRow
+                        key={file.name}
+                        icon={<ImageIcon className="h-4 w-4" />}
+                        label={file.name}
+                        onRemove={() => removeBulkImage(file.name)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {bulkError ? (
+              <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {bulkError}
+              </div>
+            ) : null}
+
+            {bulkMessage ? <FormMessageBanner message={bulkMessage} /> : null}
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={bulkUpload.isPending || (!isSa && !customerSellCode)}>
+                <Upload className="mr-1.5 h-4 w-4" />
+                {bulkUpload.isPending ? "Uploading..." : "Upload Products"}
+              </Button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       {/* ======================================================
           PRODUCT TABLE
@@ -1863,66 +1894,76 @@ function ProductsPage() {
       ) : (
         <div className="rounded-xl border border-border bg-card">
           <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-muted-foreground">
-              {selectedProductList.length
-                ? `${selectedProductList.length} selected`
-                : "Select products to export or delete"}
-            </div>
+            {canManageProductRows ? (
+              <>
+                <div className="text-sm text-muted-foreground">
+                  {selectedProductList.length
+                    ? `${selectedProductList.length} selected`
+                    : "Select products to export or delete"}
+                </div>
 
-            <div className="flex flex-wrap gap-2">
-              {selectedProductList.length ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedProducts({})}
-                >
-                  Clear
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!selectedProductList.length || isExportingProducts}
-                onClick={exportSelectedProducts}
-              >
-                <Download className="mr-1.5 h-4 w-4" />
-                {isExportingProducts ? "Exporting..." : "Export Excel"}
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={
-                  !canDeleteProducts ||
-                  !selectedProductIds.length ||
-                  bulkDeleteProducts.isPending ||
-                  isExportingProducts
-                }
-                onClick={() => {
-                  setDeleteMessage(null);
-                  setDeleteConfirmOpen(true);
-                }}
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                Delete Selected
-              </Button>
-            </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedProductList.length ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedProducts({})}
+                    >
+                      Clear
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!selectedProductList.length || isExportingProducts}
+                    onClick={exportSelectedProducts}
+                  >
+                    <Download className="mr-1.5 h-4 w-4" />
+                    {isExportingProducts ? "Exporting..." : "Export Excel"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={
+                      !canDeleteProducts ||
+                      !selectedProductIds.length ||
+                      bulkDeleteProducts.isPending ||
+                      isExportingProducts
+                    }
+                    onClick={() => {
+                      setDeleteMessage(null);
+                      setDeleteConfirmOpen(true);
+                    }}
+                  >
+                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    Delete Selected
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Viewing products assigned to your customer code.
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
-                  <th className="w-12 px-4 py-3 text-left font-medium">
-                    <Checkbox
-                      aria-label="Select all products on this page"
-                      checked={currentPageSelectionState}
-                      disabled={!products.length || productFetchQuery.isLoading}
-                      onCheckedChange={(checked) => updateCurrentPageSelection(checked === true)}
-                    />
-                  </th>
+                  {canManageProductRows ? (
+                    <th className="w-12 px-4 py-3 text-left font-medium">
+                      <Checkbox
+                        aria-label="Select all products on this page"
+                        checked={currentPageSelectionState}
+                        disabled={!products.length || productFetchQuery.isLoading}
+                        onCheckedChange={(checked) => updateCurrentPageSelection(checked === true)}
+                      />
+                    </th>
+                  ) : null}
                   {[
                     "Image",
                     "Product",
@@ -1932,7 +1973,7 @@ function ProductsPage() {
                     "Unit Rate",
                     "Customer Sell Code",
                     "Status",
-                    "",
+                    ...(canManageProductRows ? [""] : []),
                   ].map((header) => (
                     <th key={header} className="px-4 py-3 text-left font-medium">
                       {header}
@@ -1943,13 +1984,24 @@ function ProductsPage() {
 
               <tbody>
                 {productFetchQuery.isLoading ? (
-                  <TableLoadingRows columns={10} />
-                ) : !customerSellCode ? (
-                  <TableMessageRow columns={10} message="Please select a Customer Sell Code." />
+                  <TableLoadingRows columns={productTableColumnCount} />
+                ) : !canLoadProducts ? (
+                  <TableMessageRow
+                    columns={productTableColumnCount}
+                    message={
+                      productOnlyCustomer
+                        ? "No assigned business customer found for your account."
+                        : "Please select a Customer Sell Code."
+                    }
+                  />
                 ) : products.length === 0 ? (
                   <TableMessageRow
-                    columns={10}
-                    message="No products found for the selected Customer Sell Code."
+                    columns={productTableColumnCount}
+                    message={
+                      productOnlyCustomer
+                        ? "No products found for your account."
+                        : "No products found for the selected Customer Sell Code."
+                    }
                   />
                 ) : (
                   products.map((product: ProductResponse) => {
@@ -1957,15 +2009,17 @@ function ProductsPage() {
 
                     return (
                       <tr key={selectionKey} className="border-t border-border hover:bg-surface/50">
-                        <td className="px-4 py-3">
-                          <Checkbox
-                            aria-label={`Select ${product.itemDescription || product.navItemCode}`}
-                            checked={Boolean(selectedProducts[selectionKey])}
-                            onCheckedChange={(checked) =>
-                              updateSelectedProduct(product, checked === true)
-                            }
-                          />
-                        </td>
+                        {canManageProductRows ? (
+                          <td className="px-4 py-3">
+                            <Checkbox
+                              aria-label={`Select ${product.itemDescription || product.navItemCode}`}
+                              checked={Boolean(selectedProducts[selectionKey])}
+                              onCheckedChange={(checked) =>
+                                updateSelectedProduct(product, checked === true)
+                              }
+                            />
+                          </td>
+                        ) : null}
 
                         <td className="px-4 py-3">
                           <ProductImageThumbnail product={product} />
@@ -1989,18 +2043,20 @@ function ProductsPage() {
                           {product.status ? <StatusBadge status={product.status} /> : "-"}
                         </td>
 
-                        <td className="px-4 py-3 text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={!canEditProducts}
-                            onClick={() => openEditProductDialog(product)}
-                          >
-                            <Pencil className="mr-1.5 h-4 w-4" />
-                            Edit
-                          </Button>
-                        </td>
+                        {canManageProductRows ? (
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={!canEditProducts}
+                              onClick={() => openEditProductDialog(product)}
+                            >
+                              <Pencil className="mr-1.5 h-4 w-4" />
+                              Edit
+                            </Button>
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })
