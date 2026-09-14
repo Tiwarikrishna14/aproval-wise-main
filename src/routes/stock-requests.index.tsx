@@ -70,7 +70,7 @@ function StockRequestsPage() {
                 {isLoading ? (
                   <TableLoadingRows columns={9} />
                 ) : requests.length === 0 ? (
-                  <TableMessageRow columns={9} message="No stock requests returned by backend." />
+                  <TableMessageRow columns={9} message="No stock requests returned  ." />
                 ) : (
                   requests.map((request) => (
                     <tr key={request.id} className="border-t border-border hover:bg-surface/50">

@@ -38,7 +38,7 @@ function ReportsPage() {
     <div className="mx-auto max-w-[1400px] space-y-6">
       <PageHeader
         title="Reports"
-        description="Operational reports returned by the backend."
+        description="Operational reports returned  ."
         actions={
           <Button variant="outline" size="sm" disabled>
             <Download className="mr-1.5 h-4 w-4" />
@@ -52,7 +52,7 @@ function ReportsPage() {
       ) : isLoading ? (
         <EmptyState message="Loading reports from backend..." />
       ) : reports.length === 0 ? (
-        <EmptyState message="No reports returned by backend." />
+        <EmptyState message="No reports returned  ." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report, index) => {
@@ -70,7 +70,7 @@ function ReportsPage() {
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{report.name}</div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
-                      {report.description ?? "No description returned by backend."}
+                      {report.description ?? "No description returned  ."}
                     </div>
                   </div>
                 </div>

@@ -55,7 +55,7 @@ function StockVerify() {
               ) : items.length === 0 ? (
                 <TableMessageRow
                   columns={9}
-                  message="No stock verification items returned by backend."
+                  message="No stock verification items returned  ."
                 />
               ) : (
                 items.map((item) => (

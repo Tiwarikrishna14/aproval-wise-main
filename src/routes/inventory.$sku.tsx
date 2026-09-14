@@ -18,7 +18,7 @@ function StockDetail() {
 
   if (isLoading) return <EmptyState message="Loading stock item from backend..." />;
   if (isError) return <DataError message={`Failed to load stock item: ${error.message}`} />;
-  if (!item) return <EmptyState message="Stock item was not returned by backend." />;
+  if (!item) return <EmptyState message="Stock item was not returned  ." />;
 
   const threshold = item.threshold ?? 0;
   const available = item.available ?? 0;
@@ -111,7 +111,7 @@ function StockDetail() {
               <h4 className="text-sm font-semibold">Stock Movement</h4>
               {movement.length === 0 ? (
                 <div className="mt-3 text-sm text-muted-foreground">
-                  No stock movement returned by backend.
+                  No stock movement returned  .
                 </div>
               ) : (
                 <div className="mt-4 grid h-56 grid-cols-10 items-end gap-2">
@@ -145,7 +145,7 @@ function StockDetail() {
                   </thead>
                   <tbody>
                     {transactions.length === 0 ? (
-                      <TableMessageRow columns={6} message="No transactions returned by backend." />
+                      <TableMessageRow columns={6} message="No transactions returned  ." />
                     ) : (
                       transactions.map((transaction, index) => (
                         <tr key={index} className="border-t border-border">
@@ -199,7 +199,7 @@ function StockDetail() {
             <div className="mt-2 text-sm">
               {item.reorder
                 ? `Reorder ${item.reorder} units based on backend recommendation.`
-                : "No reorder recommendation returned by backend."}
+                : "No reorder recommendation returned  ."}
             </div>
             <Button className="mt-3 w-full" asChild>
               <Link to="/stock-requests/new">Request Stock</Link>

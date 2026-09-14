@@ -1,10 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +34,10 @@ import {
   branchesApi,
   businessCustomersApi,
   organizationsApi,
+  type BusinessCustomerResponse,
   type CreateBusinessCustomerRequest,
+  type PageResponse,
+  type UpdateBusinessCustomerRequest,
 } from "@/services/admin-api.service";
 
 type CustomerForm = {
@@ -37,6 +50,11 @@ type CustomerForm = {
   email: string;
   phone: string;
 };
+
+type EditCustomerForm = Omit<CustomerForm, "customerCode"> & {
+  status: BusinessCustomerResponse["status"];
+};
+
 const emptyForm: CustomerForm = {
   customerCode: "",
   name: "",
@@ -48,10 +66,35 @@ const emptyForm: CustomerForm = {
   phone: "",
 };
 
+const emptyEditForm: EditCustomerForm = {
+  name: "",
+  city: "",
+  state: "",
+  address: "",
+  pincode: "",
+  email: "",
+  phone: "",
+  status: "ACTIVE",
+};
+
+const customerPageSizes = [10, 20, 50, 100];
+
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "Business Customers - Akribiz B2B" }] }),
   component: CustomersPage,
 });
+
+function customerRecords(
+  value: BusinessCustomerResponse[] | PageResponse<BusinessCustomerResponse> | undefined,
+) {
+  return Array.isArray(value) ? value : (value?.content ?? []);
+}
+
+function customerPageResponse(
+  value: BusinessCustomerResponse[] | PageResponse<BusinessCustomerResponse> | undefined,
+) {
+  return Array.isArray(value) ? undefined : value;
+}
 
 function CustomersPage() {
   const queryClient = useQueryClient();
@@ -59,14 +102,24 @@ function CustomersPage() {
   const isCustomerAccount = isCustomerAccountUser(user);
   const canView = !isCustomerAccount && hasPermission(user, "CUSTOMER_VIEW");
   const canCreate = !isCustomerAccount && hasPermission(user, "CUSTOMER_CREATE");
+  const canUpdate = !isCustomerAccount && hasPermission(user, "CUSTOMER_UPDATE");
   const isSa = isSuperAdmin(user);
   const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
   const [branchId, setBranchId] = useState(user?.branchId ?? "");
+  const [searchInput, setSearchInput] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [customerPage, setCustomerPage] = useState(0);
+  const [customerPageSize, setCustomerPageSize] = useState(20);
   const isBranchScopedUser = !isSa && Boolean(user?.branchId);
   const canChooseCustomerBranch = isSa || !isBranchScopedUser;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [pincodeStatus, setPincodeStatus] = useState("");
+  const [editingCustomer, setEditingCustomer] = useState<BusinessCustomerResponse | null>(null);
+  const [editForm, setEditForm] = useState<EditCustomerForm>(emptyEditForm);
+  const [deleteTarget, setDeleteTarget] = useState<BusinessCustomerResponse | null>(null);
 
   useEffect(() => {
     const pincode = form.pincode.replace(/\D/g, "");
@@ -111,18 +164,43 @@ function CustomersPage() {
   const branchesQuery = useQuery({
     queryKey: ["admin", "customers", "branches", organizationId],
     queryFn: async () =>
-      branchRecords((await branchesApi.list({ size: 100, organizationId })).data),
-    enabled: (canView || canCreate) && Boolean(organizationId),
+      branchRecords(
+        (
+          await branchesApi.list({
+            size: 100,
+            organizationId: organizationId || undefined,
+          })
+        ).data,
+      ),
+    enabled: (canView || canCreate) && (isSa || Boolean(organizationId)),
     retry: false,
     staleTime: 60 * 1000,
   });
   const customersQuery = useQuery({
-    queryKey: ["admin", "business-customers", organizationId, branchId],
+    queryKey: [
+      "admin",
+      "business-customers",
+      {
+        organizationId,
+        branchId,
+        search: submittedSearch,
+        city: cityFilter,
+        status: statusFilter,
+        page: customerPage,
+        size: customerPageSize,
+      },
+    ],
     queryFn: async () =>
       (
         await businessCustomersApi.list({
+          page: customerPage,
+          size: customerPageSize,
+          sort: ["updatedAt,desc"],
           branchId: branchId || undefined,
           organizationId: organizationId || undefined,
+          search: submittedSearch || undefined,
+          city: cityFilter.trim() || undefined,
+          status: statusFilter ? (statusFilter as BusinessCustomerResponse["status"]) : undefined,
         })
       ).data,
     enabled: canView || canCreate,
@@ -151,6 +229,7 @@ function CustomersPage() {
     retry: false,
     staleTime: 60 * 1000,
   });
+
   const branches = branchRecords(branchesQuery.data);
   const organizations = (organizationsQuery.data ?? []).filter(
     (organization) => organization.organizationType === "PARENT",
@@ -159,6 +238,17 @@ function CustomersPage() {
     (organizationsQuery.data ?? []).map((organization) => [organization.id, organization.name]),
   );
   const branchesById = new Map(branches.map((branch) => [branch.id, branch]));
+  const customers = customerRecords(customersQuery.data);
+  const pageResponse = customerPageResponse(customersQuery.data);
+  const totalElements = pageResponse?.totalElements ?? customers.length;
+  const totalPages = pageResponse?.totalPages ?? (customers.length ? 1 : 0);
+  const pageStart = totalElements === 0 ? 0 : customerPage * customerPageSize + 1;
+  const pageEnd =
+    totalElements === 0
+      ? 0
+      : Math.min(customerPage * customerPageSize + customers.length, totalElements);
+  const tableColumnCount = canUpdate ? 9 : 8;
+
   const organizationLabel = (id?: string | null) => {
     if (!id) return "-";
 
@@ -181,9 +271,12 @@ function CustomersPage() {
       "Unknown branch"
     );
   };
-  const customers = Array.isArray(customersQuery.data)
-    ? customersQuery.data
-    : (customersQuery.data?.content ?? []);
+
+  useEffect(() => {
+    if (totalPages > 0 && customerPage > totalPages - 1) {
+      setCustomerPage(totalPages - 1);
+    }
+  }, [customerPage, totalPages]);
 
   const createCustomer = useMutation({
     mutationFn: (body: CreateBusinessCustomerRequest) =>
@@ -191,14 +284,97 @@ function CustomersPage() {
     onSuccess: async () => {
       setForm(emptyForm);
       setIsCreateOpen(false);
-      await queryClient.invalidateQueries({
-        queryKey: ["admin", "business-customers", organizationId, branchId],
-      });
+      toast.success("Business customer created successfully");
+      await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
     },
+    onError: (error) => toast.error(error.message),
   });
 
-  function updateField(field: keyof CustomerForm, value: string) {
+  const updateCustomer = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateBusinessCustomerRequest }) =>
+      businessCustomersApi.update(id, body),
+    onSuccess: async () => {
+      setEditingCustomer(null);
+      setEditForm(emptyEditForm);
+      toast.success("Business customer updated successfully");
+      await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const deleteCustomer = useMutation({
+    mutationFn: (id: string) => businessCustomersApi.delete(id),
+    onSuccess: async () => {
+      setDeleteTarget(null);
+      toast.success("Business customer deleted successfully");
+      await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  function updateField(field: keyof CustomerForm | keyof EditCustomerForm, value: string) {
+    if (field === "status") return;
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateEditField(field: keyof CustomerForm | keyof EditCustomerForm, value: string) {
+    if (field === "customerCode") return;
+    setEditForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyFilters() {
+    setCustomerPage(0);
+    setSubmittedSearch(searchInput.trim());
+  }
+
+  function resetFilters() {
+    setSearchInput("");
+    setSubmittedSearch("");
+    setCityFilter("");
+    setStatusFilter("");
+    setCustomerPage(0);
+  }
+
+  function changeOrganization(value: string) {
+    setOrganizationId(value);
+    setBranchId("");
+    setCustomerPage(0);
+  }
+
+  function changeBranch(value: string) {
+    setBranchId(value);
+    setCustomerPage(0);
+  }
+
+  function changePageSize(value: string) {
+    setCustomerPage(0);
+    setCustomerPageSize(Number(value));
+  }
+
+  function openEditDialog(customer: BusinessCustomerResponse) {
+    if (!canUpdate) return;
+    setEditingCustomer(customer);
+    setEditForm({
+      name: customer.name ?? "",
+      city: customer.city ?? "",
+      state: customer.state ?? "",
+      address: customer.address ?? "",
+      pincode: customer.pincode ?? "",
+      email: customer.email ?? "",
+      phone: customer.phone ?? "",
+      status: customer.status ?? "ACTIVE",
+    });
+  }
+
+  function closeEditDialog(open: boolean) {
+    if (open || updateCustomer.isPending) return;
+    setEditingCustomer(null);
+    setEditForm(emptyEditForm);
+  }
+
+  function closeDeleteDialog(open: boolean) {
+    if (open || deleteCustomer.isPending) return;
+    setDeleteTarget(null);
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -214,6 +390,30 @@ function CustomersPage() {
       email: form.email.trim() || undefined,
       phone: form.phone.trim() || undefined,
     });
+  }
+
+  function submitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canUpdate || !editingCustomer) return;
+
+    updateCustomer.mutate({
+      id: editingCustomer.id,
+      body: {
+        name: editForm.name.trim(),
+        city: editForm.city.trim() || undefined,
+        state: editForm.state.trim() || undefined,
+        address: editForm.address.trim() || undefined,
+        pincode: editForm.pincode.trim() || undefined,
+        email: editForm.email.trim() || undefined,
+        phone: editForm.phone.trim() || undefined,
+        status: editForm.status,
+      },
+    });
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget || deleteCustomer.isPending) return;
+    deleteCustomer.mutate(deleteTarget.id);
   }
 
   if (!canView && !canCreate) {
@@ -239,119 +439,242 @@ function CustomersPage() {
         }
       />
 
-      {isSa ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="max-w-sm space-y-2">
-            <Label htmlFor="customer-organization">Organization</Label>
-            <select
-              id="customer-organization"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={organizationId}
-              onChange={(event) => {
-                setOrganizationId(event.target.value);
-                setBranchId("");
-              }}
-            >
-              {isSa ? <option value="">All organizations</option> : null}
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name} ({organization.organizationCode})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="max-w-sm space-y-2">
-            <Label htmlFor="customer-branch">Branch</Label>
-            <select
-              id="customer-branch"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={branchId}
-              onChange={(event) => setBranchId(event.target.value)}
-            >
-              <option value="">All branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name} ({branch.city || "Branch"})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      ) : null}
-
       {customersQuery.isError ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
           Could not load business customers from the backend.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                {[
-                  "Customer",
-                  "Code",
-                  "Managing Organization / Branch",
-                  "Customer Location",
-                  "Email",
-                  "Phone",
-                  "Status",
-                  "Updated",
-                ].map((header) => (
-                  <th key={header} className="px-4 py-3 text-left font-medium">
-                    {header}
-                  </th>
+        <div className="rounded-xl border border-border bg-card">
+          <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_210px_190px_170px_150px_auto_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search customers"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") applyFilters();
+                }}
+              />
+            </div>
+
+            {isSa ? (
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={organizationId}
+                onChange={(event) => changeOrganization(event.target.value)}
+                aria-label="Organization filter"
+              >
+                <option value="">All organizations</option>
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name} ({organization.organizationCode})
+                  </option>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {customersQuery.isLoading ? (
-                <LoadingRows columns={8} />
-              ) : customers.length ? (
-                customers.map((customer) => (
-                  <tr key={customer.id} className="border-t border-border hover:bg-surface/50">
-                    <td className="px-4 py-3 font-medium">{customer.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{customer.customerCode}</td>
-                    <td className="px-4 py-3">
-                      <div>
-                        {organizationLabel(
-                          customer.organizationId ||
-                            branchesById.get(customer.branchId)?.organizationId ||
-                            user?.organizationId,
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {branchLabel(customer.branchId)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div>{[customer.city, customer.state].filter(Boolean).join(", ") || "-"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {[customer.address, customer.pincode].filter(Boolean).join(" - ")}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{customer.email || "-"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{customer.phone || "-"}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        status={customer.status === "ACTIVE" ? "Approved" : "Cancelled"}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {formatDate(customer.updatedAt || customer.createdAt)}
+              </select>
+            ) : null}
+
+            {canChooseCustomerBranch ? (
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={branchId}
+                onChange={(event) => changeBranch(event.target.value)}
+                disabled={!organizationId && !isSa}
+                aria-label="Branch filter"
+              >
+                <option value="">All branches</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.city || "Branch"})
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            <Input
+              value={cityFilter}
+              onChange={(event) => {
+                setCityFilter(event.target.value);
+                setCustomerPage(0);
+              }}
+              placeholder="City"
+              aria-label="City filter"
+            />
+
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setCustomerPage(0);
+              }}
+              aria-label="Status filter"
+            >
+              <option value="">Active customers</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+            </select>
+
+            <Button type="button" variant="outline" onClick={applyFilters}>
+              <Search className="mr-1.5 h-4 w-4" />
+              Apply
+            </Button>
+            <Button type="button" variant="ghost" onClick={resetFilters}>
+              <X className="mr-1.5 h-4 w-4" />
+              Reset
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  {[
+                    "Customer",
+                    "Code",
+                    "Managing Organization / Branch",
+                    "Customer Location",
+                    "Email",
+                    "Phone",
+                    "Status",
+                    "Updated",
+                    ...(canUpdate ? [""] : []),
+                  ].map((header) => (
+                    <th key={header} className="px-4 py-3 text-left font-medium">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {customersQuery.isLoading ? (
+                  <LoadingRows columns={tableColumnCount} />
+                ) : customers.length ? (
+                  customers.map((customer) => (
+                    <tr key={customer.id} className="border-t border-border hover:bg-surface/50">
+                      <td className="px-4 py-3 font-medium">{customer.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{customer.customerCode}</td>
+                      <td className="px-4 py-3">
+                        <div>
+                          {organizationLabel(
+                            customer.organizationId ||
+                              branchesById.get(customer.branchId)?.organizationId ||
+                              user?.organizationId,
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {branchLabel(customer.branchId)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div>
+                          {[customer.city, customer.state].filter(Boolean).join(", ") || "-"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {[customer.address, customer.pincode].filter(Boolean).join(" - ")}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{customer.email || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{customer.phone || "-"}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge
+                          status={customer.status === "ACTIVE" ? "Approved" : "Cancelled"}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {formatDate(customer.updatedAt || customer.createdAt)}
+                      </td>
+                      {canUpdate ? (
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openEditDialog(customer)}
+                            >
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                            {customer.status === "ACTIVE" ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleteTarget(customer)}
+                              >
+                                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                Delete
+                              </Button>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={tableColumnCount}
+                      className="px-4 py-8 text-center text-muted-foreground"
+                    >
+                      No business customers returned.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                    No business customers in this branch.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {totalElements
+                ? `Showing ${pageStart}-${pageEnd} of ${totalElements}`
+                : "No customers to show"}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="customers-page-size" className="text-xs">
+                Rows
+              </Label>
+              <select
+                id="customers-page-size"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                value={customerPageSize}
+                onChange={(event) => changePageSize(event.target.value)}
+              >
+                {customerPageSizes.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+              <div className="mx-2 text-xs">
+                Page {totalPages ? customerPage + 1 : 0} of {totalPages || 0}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={customerPage === 0 || customersQuery.isLoading}
+                onClick={() => setCustomerPage((page) => Math.max(0, page - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  customersQuery.isLoading || totalPages === 0 || customerPage >= totalPages - 1
+                }
+                onClick={() => setCustomerPage((page) => page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -371,10 +694,7 @@ function CustomersPage() {
                   id="create-customer-organization"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={organizationId}
-                  onChange={(event) => {
-                    setOrganizationId(event.target.value);
-                    setBranchId("");
-                  }}
+                  onChange={(event) => changeOrganization(event.target.value)}
                   required
                 >
                   <option value="">Select organization</option>
@@ -392,7 +712,7 @@ function CustomersPage() {
                   id="create-customer-branch"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={branchId}
-                  onChange={(event) => setBranchId(event.target.value)}
+                  onChange={(event) => changeBranch(event.target.value)}
                   disabled={!organizationId || branchesQuery.isLoading}
                   required
                 >
@@ -405,99 +725,193 @@ function CustomersPage() {
                 </select>
               </Field>
             ) : null}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Customer Code" id="customer-code">
-                <Input
-                  id="customer-code"
-                  value={form.customerCode}
-                  onChange={(event) => updateField("customerCode", event.target.value)}
-                  placeholder="HALDIRAM-NOIDA"
-                  required
-                />
-              </Field>
-              <Field label="Customer Name" id="customer-name">
-                <Input
-                  id="customer-name"
-                  value={form.name}
-                  onChange={(event) => updateField("name", event.target.value)}
-                  placeholder="Haldiram"
-                  required
-                />
-              </Field>
-              <Field label="Customer City" id="customer-city">
-                <Input
-                  id="customer-city"
-                  value={form.city}
-                  onChange={(event) => updateField("city", event.target.value)}
-                  placeholder="Noida"
-                  required
-                />
-              </Field>
-              <Field label="State" id="customer-state">
-                <Input
-                  id="customer-state"
-                  value={form.state}
-                  onChange={(event) => updateField("state", event.target.value)}
-                  placeholder="Uttar Pradesh"
-                />
-              </Field>
-              <Field label="Customer Address" id="customer-address">
-                <Input
-                  id="customer-address"
-                  value={form.address}
-                  onChange={(event) => updateField("address", event.target.value)}
-                  placeholder="Sector 18, Noida"
-                />
-              </Field>
-              <Field label="Pincode" id="customer-pincode">
-                <div className="space-y-1">
-                  <Input
-                    id="customer-pincode"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={form.pincode}
-                    onChange={(event) =>
-                      updateField("pincode", event.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder="201301"
-                  />
-                  {pincodeStatus ? (
-                    <p className="text-xs text-muted-foreground">{pincodeStatus}</p>
-                  ) : null}
-                </div>
-              </Field>
-              <Field label="Email" id="customer-email">
-                <Input
-                  id="customer-email"
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => updateField("email", event.target.value)}
-                />
-              </Field>
-              <Field label="Phone" id="customer-phone">
-                <Input
-                  id="customer-phone"
-                  value={form.phone}
-                  onChange={(event) => updateField("phone", event.target.value)}
-                />
-              </Field>
-            </div>
-            {createCustomer.isError ? (
-              <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {createCustomer.error.message}
-              </div>
-            ) : null}
+            <CustomerFields
+              form={form}
+              updateField={updateField}
+              pincodeStatus={pincodeStatus}
+              includeCode
+            />
+            {createCustomer.isError ? <InlineError message={createCustomer.error.message} /> : null}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateOpen(false)}
+                disabled={createCustomer.isPending}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createCustomer.isPending}>
+              <Button type="submit" disabled={createCustomer.isPending || !branchId}>
                 {createCustomer.isPending ? "Creating..." : "Create Customer"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={Boolean(editingCustomer)} onOpenChange={closeEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Business Customer</DialogTitle>
+            <DialogDescription>
+              Update customer details or reactivate an inactive customer.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={submitEdit}>
+            {editingCustomer ? (
+              <Field label="Customer Code" id="edit-customer-code">
+                <Input id="edit-customer-code" value={editingCustomer.customerCode} readOnly />
+              </Field>
+            ) : null}
+            <CustomerFields form={editForm} updateField={updateEditField} />
+            <Field label="Status" id="edit-customer-status">
+              <select
+                id="edit-customer-status"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={editForm.status}
+                onChange={(event) =>
+                  updateEditField(
+                    "status",
+                    event.target.value as BusinessCustomerResponse["status"],
+                  )
+                }
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </Field>
+            {updateCustomer.isError ? <InlineError message={updateCustomer.error.message} /> : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => closeEditDialog(false)}
+                disabled={updateCustomer.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateCustomer.isPending || !editForm.name.trim()}>
+                {updateCustomer.isPending ? "Saving..." : "Save Customer"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={closeDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete business customer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `This will mark ${deleteTarget.name} as INACTIVE. It will no longer appear in the normal active customer list.`
+                : "This will mark the customer as INACTIVE."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteCustomer.isError ? <InlineError message={deleteCustomer.error.message} /> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteCustomer.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteCustomer.isPending || !deleteTarget}
+              onClick={confirmDelete}
+            >
+              {deleteCustomer.isPending ? "Deleting..." : "Delete Customer"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function CustomerFields({
+  form,
+  updateField,
+  pincodeStatus,
+  includeCode,
+}: {
+  form: CustomerForm | EditCustomerForm;
+  updateField: (field: keyof CustomerForm | keyof EditCustomerForm, value: string) => void;
+  pincodeStatus?: string;
+  includeCode?: boolean;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {includeCode ? (
+        <Field label="Customer Code" id="customer-code">
+          <Input
+            id="customer-code"
+            value={(form as CustomerForm).customerCode}
+            onChange={(event) => updateField("customerCode", event.target.value)}
+            placeholder="CUST001"
+            required
+          />
+        </Field>
+      ) : null}
+      <Field label="Customer Name" id="customer-name">
+        <Input
+          id="customer-name"
+          value={form.name}
+          onChange={(event) => updateField("name", event.target.value)}
+          placeholder="ABC Pvt Ltd"
+          required
+        />
+      </Field>
+      <Field label="Customer City" id="customer-city">
+        <Input
+          id="customer-city"
+          value={form.city}
+          onChange={(event) => updateField("city", event.target.value)}
+          placeholder="Delhi"
+          required
+        />
+      </Field>
+      <Field label="State" id="customer-state">
+        <Input
+          id="customer-state"
+          value={form.state}
+          onChange={(event) => updateField("state", event.target.value)}
+          placeholder="Delhi"
+        />
+      </Field>
+      <Field label="Customer Address" id="customer-address">
+        <Input
+          id="customer-address"
+          value={form.address}
+          onChange={(event) => updateField("address", event.target.value)}
+          placeholder="Address"
+        />
+      </Field>
+      <Field label="Pincode" id="customer-pincode">
+        <div className="space-y-1">
+          <Input
+            id="customer-pincode"
+            inputMode="numeric"
+            maxLength={6}
+            value={form.pincode}
+            onChange={(event) => updateField("pincode", event.target.value.replace(/\D/g, ""))}
+            placeholder="110001"
+          />
+          {pincodeStatus ? <p className="text-xs text-muted-foreground">{pincodeStatus}</p> : null}
+        </div>
+      </Field>
+      <Field label="Email" id="customer-email">
+        <Input
+          id="customer-email"
+          type="email"
+          value={form.email}
+          onChange={(event) => updateField("email", event.target.value)}
+        />
+      </Field>
+      <Field label="Phone" id="customer-phone">
+        <Input
+          id="customer-phone"
+          value={form.phone}
+          onChange={(event) => updateField("phone", event.target.value)}
+        />
+      </Field>
     </div>
   );
 }
@@ -510,6 +924,15 @@ function Field({ label, id, children }: { label: string; id: string; children: R
     </div>
   );
 }
+
+function InlineError({ message }: { message: string }) {
+  return (
+    <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+      {message}
+    </div>
+  );
+}
+
 function formatDate(value?: string) {
   return value
     ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(
@@ -517,6 +940,7 @@ function formatDate(value?: string) {
       )
     : "-";
 }
+
 function LoadingRows({ columns }: { columns: number }) {
   return Array.from({ length: 6 }).map((_, rowIndex) => (
     <tr key={rowIndex} className="border-t border-border">

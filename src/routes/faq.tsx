@@ -51,7 +51,7 @@ function FaqPage() {
       ) : isLoading ? (
         <EmptyState message="Loading FAQs from backend..." />
       ) : faqs.length === 0 ? (
-        <EmptyState message="No FAQs returned by backend." />
+        <EmptyState message="No FAQs returned  ." />
       ) : (
         <>
           {categories.length > 0 && (

@@ -61,7 +61,7 @@ function AuditLogsPage() {
               {isLoading ? (
                 <TableLoadingRows columns={9} />
               ) : auditLogs.length === 0 ? (
-                <TableMessageRow columns={9} message="No audit logs returned by backend." />
+                <TableMessageRow columns={9} message="No audit logs returned  ." />
               ) : (
                 auditLogs.map((log, index) => (
                   <tr key={log.id ?? index} className="border-t border-border hover:bg-surface/50">

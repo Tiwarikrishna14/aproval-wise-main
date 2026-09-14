@@ -260,7 +260,7 @@ function RolesPage() {
                 ))}
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">No roles returned by the backend.</div>
+              <div className="text-sm text-muted-foreground">No roles returned  .</div>
             )}
           </div>
         </div>

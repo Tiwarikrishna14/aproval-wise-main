@@ -50,9 +50,13 @@ export type UpdateOrganizationRequest = {
 export type UserResponse = {
   id: string;
   organizationId: string;
+  organizationName?: string | null;
   branchId?: string | null;
+  branchName?: string | null;
   businessCustomerId?: string | null;
+  businessCustomerName?: string | null;
   businessCustomerLocationId?: string | null;
+  businessCustomerLocationName?: string | null;
   userType: "EMPLOYEE" | "CUSTOMER";
   firstName: string;
   lastName: string;
@@ -88,6 +92,16 @@ export type UpdateUserRequest = {
 
 export type UserListQuery = PageableQuery & {
   branchId?: string;
+  businessCustomerId?: string;
+  businessCustomerLocationId?: string;
+  status?: string;
+  roles?: string | string[];
+};
+
+export type ApproverUserResponse = {
+  userId: string;
+  name: string;
+  email?: string;
 };
 
 export type RoleResponse = {
@@ -137,9 +151,24 @@ export const usersApi = {
   list: (query?: UserListQuery) => {
     const params = new URLSearchParams(buildSearchParams(query));
     if (query?.branchId) params.set("branchId", query.branchId);
+    if (query?.businessCustomerId) params.set("businessCustomerId", query.businessCustomerId);
+    if (query?.businessCustomerLocationId) {
+      params.set("businessCustomerLocationId", query.businessCustomerLocationId);
+    }
+    if (query?.status) params.set("status", query.status);
+    if (query?.roles) {
+      const roles = Array.isArray(query.roles)
+        ? query.roles.filter(Boolean).join(",")
+        : query.roles;
+      if (roles) params.set("roles", roles);
+    }
 
     return apiGet<ApiEnvelope<PageResponse<UserResponse>>>(`/api/users?${params.toString()}`);
   },
+  approvers: (businessCustomerId: string) =>
+    apiGet<ApiEnvelope<ApproverUserResponse[]>>(
+      `/api/users/approvers?businessCustomerId=${encodeURIComponent(businessCustomerId)}`,
+    ),
   get: (id: string) => apiGet<ApiEnvelope<UserResponse>>(`/api/users/${id}`),
   create: (body: CreateUserRequest) => apiPost<ApiEnvelope<UserResponse>>("/api/users", body),
   update: (id: string, body: UpdateUserRequest) =>
@@ -256,6 +285,13 @@ export type CreateBusinessCustomerRequest = {
 export type UpdateBusinessCustomerRequest = Omit<CreateBusinessCustomerRequest, "customerCode"> & {
   status?: BusinessCustomerResponse["status"];
 };
+
+export type BusinessCustomerListQuery = PageableQuery & {
+  organizationId?: string;
+  branchId?: string;
+  city?: string;
+  status?: BusinessCustomerResponse["status"];
+};
 export interface ProductResponse {
   id: number;
   category: string;
@@ -283,10 +319,16 @@ export type UpdateProductRequest = ProductForm & {
 };
 
 export const businessCustomersApi = {
-  list: (filters: { branchId?: string; organizationId?: string } = {}) => {
+  list: (filters: BusinessCustomerListQuery = {}) => {
     const params = new URLSearchParams();
+    if (filters.page != null) params.set("page", String(filters.page));
+    if (filters.size != null) params.set("size", String(filters.size));
+    filters.sort?.forEach((sort) => params.append("sort", sort));
+    if (filters.search) params.set("search", filters.search);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.organizationId) params.set("organizationId", filters.organizationId);
+    if (filters.city) params.set("city", filters.city);
+    if (filters.status) params.set("status", filters.status);
     const query = params.toString();
     return apiGet<ApiEnvelope<BusinessCustomerResponse[] | PageResponse<BusinessCustomerResponse>>>(
       `/api/business-customers${query ? `?${query}` : ""}`,
@@ -301,6 +343,8 @@ export const businessCustomersApi = {
     ),
   update: (id: string, body: UpdateBusinessCustomerRequest) =>
     apiPut<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`, body),
+  delete: (id: string) =>
+    apiDelete<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`),
 };
 
 export const permissionsApi = {
@@ -311,16 +355,12 @@ export const productsApi = {
   list: (
     query?: {
       customerSellCode?: string;
-      businessCustomerId?: string;
     } & PageableQuery,
   ) => {
     const params = new URLSearchParams(buildSearchParams(query));
 
     if (query?.customerSellCode) {
       params.set("customerCode", query.customerSellCode);
-    }
-    if (query?.businessCustomerId) {
-      params.set("businessCustomerId", query.businessCustomerId);
     }
 
     return apiPost<ApiEnvelope<PageResponse<ProductResponse> | ProductResponse[]>>(

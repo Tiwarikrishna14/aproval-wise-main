@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { Pencil, Plus, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-parts";
@@ -40,6 +40,8 @@ import {
   type CreateUserRequest,
   type OrganizationResponse,
   type BranchResponse,
+  type BusinessCustomerResponse,
+  type PageResponse,
   type RoleResponse,
   type UpdateUserRequest,
   type UserResponse,
@@ -122,6 +124,9 @@ const emptyEditForm: EditUserForm = {
   phone: "",
 };
 
+const userPageSizes = [10, 20, 50, 100];
+const userStatusFilters = ["ACTIVE", "PENDING", "LOCKED", "INACTIVE"];
+
 export const Route = createFileRoute("/users")({
   head: () => ({ meta: [{ title: "Users - Akribiz B2B" }] }),
   component: UsersPage,
@@ -137,6 +142,20 @@ function organizationNameById(organizations: OrganizationResponse[]) {
 
 function branchNameById(branches: BranchResponse[]) {
   return new Map(branches.map((branch) => [branch.id, branch.name]));
+}
+
+function businessCustomerNameById(customers: BusinessCustomerResponse[]) {
+  return new Map(customers.map((customer) => [customer.id, customer.name]));
+}
+
+type UsersQueryData = PageResponse<UserResponse> | UserResponse[];
+
+function userRecords(value: UsersQueryData | undefined) {
+  return Array.isArray(value) ? value : (value?.content ?? []);
+}
+
+function userPageResponse(value: UsersQueryData | undefined) {
+  return Array.isArray(value) ? undefined : value;
 }
 
 function roleKey(roleName: string) {
@@ -173,6 +192,14 @@ function UsersPage() {
   const [rolesDialogError, setRolesDialogError] = useState("");
   const [revokeRoleTarget, setRevokeRoleTarget] = useState<RevokeRoleTarget | null>(null);
   const [deleteTargetUser, setDeleteTargetUser] = useState<UserResponse | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [businessCustomerFilter, setBusinessCustomerFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [userPage, setUserPage] = useState(0);
+  const [userPageSize, setUserPageSize] = useState(20);
   const hasViewAccess = hasPermission(user, "USER_VIEW");
   const hasCreateAccess = hasPermission(user, "USER_CREATE");
   const hasUpdateAccess = hasPermission(user, "USER_UPDATE");
@@ -183,20 +210,37 @@ function UsersPage() {
   const isSa = isSuperAdmin(user);
   const assignedOrganizationId = isSa ? "" : (user?.organizationId ?? "");
   const assignedBranchId = isSa ? "" : (user?.branchId ?? "");
-  const scopedUsersBranchId = assignedBranchId || undefined;
-  const usersQueryKey = [...usersQueryOptions.queryKey, scopedUsersBranchId ?? "all"] as const;
   const selectedCreateOrganizationId = form.organizationId || assignedOrganizationId;
   const isBranchScopedCreator = Boolean(assignedBranchId);
+  const scopedUsersBranchId = assignedBranchId || branchFilter || undefined;
+  const usersQueryKey = [
+    ...usersQueryOptions.queryKey,
+    {
+      branchId: scopedUsersBranchId ?? "",
+      businessCustomerId: businessCustomerFilter,
+      status: statusFilter,
+      roles: roleFilter,
+      search: submittedSearch,
+      page: userPage,
+      size: userPageSize,
+    },
+  ] as const;
   const usersQuery = useQuery({
     ...usersQueryOptions,
     queryKey: usersQueryKey,
     queryFn: async () =>
       (
         await usersApi.list({
-          size: 100,
+          page: userPage,
+          size: userPageSize,
           branchId: scopedUsersBranchId,
+          businessCustomerId: businessCustomerFilter || undefined,
+          status: statusFilter || undefined,
+          roles: roleFilter || undefined,
+          search: submittedSearch || undefined,
+          sort: ["createdAt,desc"],
         })
-      ).data.content,
+      ).data,
     enabled: hasViewAccess,
   });
   const organizationsQuery = useQuery({
@@ -238,7 +282,7 @@ function UsersPage() {
     enabled:
       (hasViewAccess || hasCreateAccess) &&
       !isBranchScopedCreator &&
-      Boolean(selectedCreateOrganizationId),
+      (Boolean(selectedCreateOrganizationId) || isSa),
   });
   const businessCustomersQuery = useQuery({
     queryKey: [
@@ -259,16 +303,44 @@ function UsersPage() {
     staleTime: 60 * 1000,
     retry: false,
   });
+  const filterBusinessCustomersQuery = useQuery({
+    queryKey: [
+      "admin",
+      "users",
+      "filter-business-customers",
+      selectedCreateOrganizationId,
+      scopedUsersBranchId,
+    ],
+    queryFn: async () =>
+      (
+        await businessCustomersApi.list({
+          organizationId: selectedCreateOrganizationId || undefined,
+          branchId: scopedUsersBranchId,
+        })
+      ).data,
+    enabled: hasViewAccess,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
   const rolesQuery = useQuery({
     ...userRolesQueryOptions,
-    enabled: (hasCreateAccess || hasRoleManageAccess) && hasRoleViewAccess,
+    enabled: hasRoleViewAccess && (hasViewAccess || hasCreateAccess || hasRoleManageAccess),
   });
-  const users = usersQuery.data ?? [];
+  const users = userRecords(usersQuery.data);
+  const usersPageResponse = userPageResponse(usersQuery.data);
+  const totalUsers = usersPageResponse?.totalElements ?? users.length;
+  const totalUserPages = usersPageResponse?.totalPages ?? (users.length ? 1 : 0);
+  const userPageStart = totalUsers === 0 ? 0 : userPage * userPageSize + 1;
+  const userPageEnd =
+    totalUsers === 0 ? 0 : Math.min(userPage * userPageSize + users.length, totalUsers);
   const organizations = organizationsQuery.data ?? [];
   const branches = branchRecords(branchesQuery.data);
   const businessCustomers = Array.isArray(businessCustomersQuery.data)
     ? businessCustomersQuery.data
     : (businessCustomersQuery.data?.content ?? []);
+  const filterBusinessCustomers = Array.isArray(filterBusinessCustomersQuery.data)
+    ? filterBusinessCustomersQuery.data
+    : (filterBusinessCustomersQuery.data?.content ?? []);
   const roles = rolesQuery.data ?? [];
   const rolesByName = roleByName(roles);
   const managedAssignedRoleNames = new Set(
@@ -285,10 +357,15 @@ function UsersPage() {
   });
   const organizationsById = organizationNameById(organizations);
   const branchesById = branchNameById(branches);
-  const branchLabel = (branchId?: string | null) => {
+  const businessCustomersById = businessCustomerNameById([
+    ...filterBusinessCustomers,
+    ...businessCustomers,
+  ]);
+  const branchLabel = (branchId?: string | null, fallbackName?: string | null) => {
     if (!branchId) return "-";
 
     return (
+      fallbackName ||
       branchesById.get(branchId) ||
       (branchId === assignedBranchId
         ? user?.branchName || assignedBranchQuery.data?.name || "Assigned branch"
@@ -296,15 +373,25 @@ function UsersPage() {
       "Unknown branch"
     );
   };
-  const organizationLabel = (organizationId?: string | null) => {
+  const organizationLabel = (organizationId?: string | null, fallbackName?: string | null) => {
     if (!organizationId) return "-";
 
     return (
+      fallbackName ||
       organizationsById.get(organizationId) ||
       (organizationId === assignedOrganizationId
         ? user?.organizationName || assignedOrganizationQuery.data?.name
         : undefined) ||
       "Unknown organization"
+    );
+  };
+  const businessCustomerLabel = (record: UserResponse) => {
+    if (!record.businessCustomerId) return "-";
+
+    return (
+      record.businessCustomerName ||
+      businessCustomersById.get(record.businessCustomerId) ||
+      "Unknown customer"
     );
   };
   const selectedCreateOrganizationLabel = organizationLabel(selectedCreateOrganizationId);
@@ -397,6 +484,53 @@ function UsersPage() {
   });
 
   const roleDialogBusy = assignRolesToUser.isPending || revokeUserRole.isPending;
+
+  useEffect(() => {
+    if (totalUserPages > 0 && userPage > totalUserPages - 1) {
+      setUserPage(totalUserPages - 1);
+    }
+  }, [totalUserPages, userPage]);
+
+  function applyUserFilters() {
+    setUserPage(0);
+    setSubmittedSearch(searchInput.trim());
+  }
+
+  function resetUserFilters() {
+    setSearchInput("");
+    setSubmittedSearch("");
+    setBranchFilter("");
+    setBusinessCustomerFilter("");
+    setStatusFilter("");
+    setRoleFilter("");
+    setUserPage(0);
+  }
+
+  function updateBranchFilter(value: string) {
+    setBranchFilter(value);
+    setBusinessCustomerFilter("");
+    setUserPage(0);
+  }
+
+  function updateBusinessCustomerFilter(value: string) {
+    setBusinessCustomerFilter(value);
+    setUserPage(0);
+  }
+
+  function updateStatusFilter(value: string) {
+    setStatusFilter(value);
+    setUserPage(0);
+  }
+
+  function updateRoleFilter(value: string) {
+    setRoleFilter(value);
+    setUserPage(0);
+  }
+
+  function updateUserPageSize(value: string) {
+    setUserPage(0);
+    setUserPageSize(Number(value));
+  }
 
   function updateField(field: keyof Omit<UserForm, "roleIds">, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -614,96 +748,249 @@ function UsersPage() {
           Could not load users, organizations, or roles from the backend.
         </div>
       ) : hasViewAccess ? (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                {tableHeaders.map((header) => (
-                  <th key={header} className="px-4 py-3 text-left font-medium">
-                    {header}
-                  </th>
+        <div className="rounded-xl border border-border bg-card">
+          <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_190px_220px_150px_170px_auto_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search users"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") applyUserFilters();
+                }}
+              />
+            </div>
+
+            {isBranchScopedCreator ? (
+              <Input value={branchLabel(assignedBranchId)} readOnly aria-label="Branch filter" />
+            ) : (
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={branchFilter}
+                onChange={(event) => updateBranchFilter(event.target.value)}
+                disabled={branchesQuery.isLoading}
+                aria-label="Branch filter"
+              >
+                <option value="">
+                  {branchesQuery.isLoading ? "Loading branches..." : "All branches"}
+                </option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                    {branch.branchCode ? ` (${branch.branchCode})` : ""}
+                  </option>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <LoadingRows columns={tableColumnCount} />
-              ) : users.length > 0 ? (
-                users.map((record) => (
-                  <tr key={record.id} className="border-t border-border hover:bg-surface/50">
-                    <td className="px-4 py-3 font-medium">{fullUserName(record)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{record.email}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      <span>{organizationLabel(record.organizationId)}</span>
-                      {record.branchId ? (
-                        <span className="block text-xs text-muted-foreground">
-                          {branchLabel(record.branchId)}
+              </select>
+            )}
+
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={businessCustomerFilter}
+              onChange={(event) => updateBusinessCustomerFilter(event.target.value)}
+              disabled={filterBusinessCustomersQuery.isLoading}
+              aria-label="Business customer filter"
+            >
+              <option value="">
+                {filterBusinessCustomersQuery.isLoading ? "Loading customers..." : "All customers"}
+              </option>
+              {filterBusinessCustomers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                  {customer.customerCode ? ` (${customer.customerCode})` : ""}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={statusFilter}
+              onChange={(event) => updateStatusFilter(event.target.value)}
+              aria-label="Status filter"
+            >
+              <option value="">Default status</option>
+              {userStatusFilters.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            {hasRoleViewAccess ? (
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={roleFilter}
+                onChange={(event) => updateRoleFilter(event.target.value)}
+                disabled={rolesQuery.isLoading}
+                aria-label="Role filter"
+              >
+                <option value="">{rolesQuery.isLoading ? "Loading roles..." : "All roles"}</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.name}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            <Button type="button" variant="outline" onClick={applyUserFilters}>
+              <Search className="mr-1.5 h-4 w-4" />
+              Apply
+            </Button>
+            <Button type="button" variant="ghost" onClick={resetUserFilters}>
+              <X className="mr-1.5 h-4 w-4" />
+              Reset
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  {tableHeaders.map((header) => (
+                    <th key={header} className="px-4 py-3 text-left font-medium">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <LoadingRows columns={tableColumnCount} />
+                ) : users.length > 0 ? (
+                  users.map((record) => (
+                    <tr key={record.id} className="border-t border-border hover:bg-surface/50">
+                      <td className="px-4 py-3 font-medium">{fullUserName(record)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{record.email}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        <span>
+                          {organizationLabel(record.organizationId, record.organizationName)}
                         </span>
-                      ) : null}
-                      {record.businessCustomerId ? (
-                        <span className="block text-xs text-muted-foreground">
-                          Customer: {record.businessCustomerId}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={statusForBadge(record.status)} />
-                    </td>
-                    {hasRoleViewAccess ? (
-                      <td className="max-w-[280px] px-4 py-3 text-muted-foreground">
-                        <span className="line-clamp-1">
-                          {(record.roles ?? []).join(", ") || "-"}
-                        </span>
+                        {record.branchId ? (
+                          <span className="block text-xs text-muted-foreground">
+                            {branchLabel(record.branchId, record.branchName)}
+                          </span>
+                        ) : null}
+                        {record.businessCustomerId ? (
+                          <span className="block text-xs text-muted-foreground">
+                            Customer: {businessCustomerLabel(record)}
+                          </span>
+                        ) : null}
                       </td>
-                    ) : null}
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {formatDate(record.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {hasUpdateAccess ? (
-                          <Button size="sm" variant="ghost" onClick={() => openEditDialog(record)}>
-                            <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                            Edit
-                          </Button>
-                        ) : null}
-                        {hasRoleManageAccess ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openManageRolesDialog(record)}
-                          >
-                            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                            Manage Roles
-                          </Button>
-                        ) : null}
-                        {hasDeleteAccess && record.id !== user?.id ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => openDeleteDialog(record)}
-                          >
-                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                            Delete User
-                          </Button>
-                        ) : null}
-                      </div>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={statusForBadge(record.status)} />
+                      </td>
+                      {hasRoleViewAccess ? (
+                        <td className="max-w-[280px] px-4 py-3 text-muted-foreground">
+                          <span className="line-clamp-1">
+                            {(record.roles ?? []).join(", ") || "-"}
+                          </span>
+                        </td>
+                      ) : null}
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {formatDate(record.createdAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {hasUpdateAccess ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openEditDialog(record)}
+                            >
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                          ) : null}
+                          {hasRoleManageAccess ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openManageRolesDialog(record)}
+                            >
+                              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                              Manage Roles
+                            </Button>
+                          ) : null}
+                          {hasDeleteAccess && record.id !== user?.id ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => openDeleteDialog(record)}
+                            >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              Delete User
+                            </Button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={tableColumnCount}
+                      className="px-4 py-8 text-center text-muted-foreground"
+                    >
+                      No users returned.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={tableColumnCount}
-                    className="px-4 py-8 text-center text-muted-foreground"
-                  >
-                    No users returned by the backend.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {totalUsers
+                ? `Showing ${userPageStart}-${userPageEnd} of ${totalUsers}`
+                : "No users to show"}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="users-page-size" className="text-xs">
+                Rows
+              </Label>
+              <select
+                id="users-page-size"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                value={userPageSize}
+                onChange={(event) => updateUserPageSize(event.target.value)}
+              >
+                {userPageSizes.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+
+              <div className="mx-2 text-xs">
+                Page {totalUserPages ? userPage + 1 : 0} of {totalUserPages || 0}
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={userPage === 0 || usersQuery.isLoading}
+                onClick={() => setUserPage((page) => Math.max(0, page - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  usersQuery.isLoading || totalUserPages === 0 || userPage >= totalUserPages - 1
+                }
+                onClick={() => setUserPage((page) => page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -879,9 +1166,7 @@ function UsersPage() {
                 <Label>Roles</Label>
                 <div className="grid max-h-48 gap-2 overflow-y-auto rounded-md border border-border p-3 sm:grid-cols-2">
                   {availableRoles.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
-                      No roles returned by backend.
-                    </div>
+                    <div className="text-sm text-muted-foreground">No roles returned.</div>
                   ) : (
                     availableRoles.map((role) => (
                       <label
@@ -1192,9 +1477,21 @@ function mergeCreatedUser(
   queryKey: QueryKey,
   createdUser: UserResponse,
 ) {
-  queryClient.setQueryData<UserResponse[]>(queryKey, (current = []) => {
-    if (current.some((record) => record.id === createdUser.id)) return current;
-    return [createdUser, ...current];
+  queryClient.setQueryData<UsersQueryData | undefined>(queryKey, (current) => {
+    if (!current) return [createdUser];
+
+    if (Array.isArray(current)) {
+      if (current.some((record) => record.id === createdUser.id)) return current;
+      return [createdUser, ...current];
+    }
+
+    if (current.content.some((record) => record.id === createdUser.id)) return current;
+
+    return {
+      ...current,
+      content: [createdUser, ...current.content].slice(0, current.size),
+      totalElements: current.totalElements + 1,
+    };
   });
 }
 
@@ -1203,9 +1500,20 @@ function mergeUser(
   queryKey: QueryKey,
   updatedUser: UserResponse,
 ) {
-  queryClient.setQueryData<UserResponse[]>(queryKey, (current = []) =>
-    current.map((record) => (record.id === updatedUser.id ? updatedUser : record)),
-  );
+  queryClient.setQueryData<UsersQueryData | undefined>(queryKey, (current) => {
+    if (!current) return current;
+
+    if (Array.isArray(current)) {
+      return current.map((record) => (record.id === updatedUser.id ? updatedUser : record));
+    }
+
+    return {
+      ...current,
+      content: current.content.map((record) =>
+        record.id === updatedUser.id ? updatedUser : record,
+      ),
+    };
+  });
 }
 
 function removeUser(
@@ -1213,9 +1521,21 @@ function removeUser(
   queryKey: QueryKey,
   userId: string,
 ) {
-  queryClient.setQueryData<UserResponse[]>(queryKey, (current = []) =>
-    current.filter((record) => record.id !== userId),
-  );
+  queryClient.setQueryData<UsersQueryData | undefined>(queryKey, (current) => {
+    if (!current) return current;
+
+    if (Array.isArray(current)) return current.filter((record) => record.id !== userId);
+
+    const nextContent = current.content.filter((record) => record.id !== userId);
+    return {
+      ...current,
+      content: nextContent,
+      totalElements:
+        nextContent.length === current.content.length
+          ? current.totalElements
+          : Math.max(0, current.totalElements - 1),
+    };
+  });
 }
 
 function Field({

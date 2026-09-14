@@ -720,8 +720,6 @@ function ProductsPage() {
   const canDeleteProducts =
     canManageProductRows && (isSa || canCreate || hasPermission(user, "PRODUCT_DELETE"));
   const assignedBusinessCustomerId = isSa ? undefined : user?.businessCustomerId;
-  const authCustomerSellCode =
-    user?.customerSellCode || user?.customerCode || user?.businessCustomerCode || "";
 
   /*
    * ============================================================
@@ -874,7 +872,6 @@ function ProductsPage() {
     },
 
     enabled:
-      !productOnlyCustomer &&
       (canView || canCreate) &&
       (isSa
         ? Boolean(organizationId) && Boolean(branchId)
@@ -911,42 +908,23 @@ function ProductsPage() {
 
   const assignedCustomerSellCode = !isSa && sellCodes.length === 1 ? sellCodes[0].code : "";
   const canChooseScopedCustomerSellCode = !isSa && sellCodes.length > 1;
-  const productQueryBusinessCustomerId = productOnlyCustomer ? assignedBusinessCustomerId : "";
-  const productQueryCustomerSellCode = productOnlyCustomer
-    ? authCustomerSellCode
-    : customerSellCode;
-  const canLoadProducts = productOnlyCustomer
-    ? Boolean(productQueryBusinessCustomerId || productQueryCustomerSellCode)
-    : Boolean(customerSellCode);
 
   const productFetchQuery = useQuery({
-    queryKey: [
-      "admin",
-      "product-list",
-      productQueryCustomerSellCode,
-      productQueryBusinessCustomerId,
-      productPage,
-      productPageSize,
-    ],
+    queryKey: ["admin", "product-list", customerSellCode, productPage, productPageSize],
     queryFn: async () =>
       (
         await productsApi.list({
           page: productPage,
           size: productPageSize,
-          customerSellCode: productQueryCustomerSellCode || undefined,
-          businessCustomerId: productQueryBusinessCustomerId || undefined,
+          customerSellCode,
         })
       ).data,
-    enabled: canLoadProducts && (canView || canCreate),
+    enabled: Boolean(customerSellCode) && (canView || canCreate),
     retry: false,
     staleTime: 60 * 1000,
   });
   const products = productRecords(productFetchQuery.data).filter(
-    (product) =>
-      isSa ||
-      (productOnlyCustomer
-        ? !productQueryCustomerSellCode || product.customerSellCode === productQueryCustomerSellCode
-        : product.customerSellCode === customerSellCode),
+    (product) => isSa || product.customerSellCode === customerSellCode,
   );
   const pageResponse = productPageResponse(productFetchQuery.data);
   const totalElements = pageResponse?.totalElements ?? products.length;
@@ -1368,7 +1346,7 @@ function ProductsPage() {
       const rows: ProductWorkbookRow[] = await Promise.all(
         selectedProductList.map(async (product) => ({
           product,
-          image: await imagePathToWorkbookImage(product.imagePath),
+          image: await imagePathToWorkbookImage(product.imagePath ?? undefined),
         })),
       );
       const blob = createProductWorkbookBlob(rows);
@@ -1985,12 +1963,14 @@ function ProductsPage() {
               <tbody>
                 {productFetchQuery.isLoading ? (
                   <TableLoadingRows columns={productTableColumnCount} />
-                ) : !canLoadProducts ? (
+                ) : !customerSellCode ? (
                   <TableMessageRow
                     columns={productTableColumnCount}
                     message={
                       productOnlyCustomer
-                        ? "No assigned business customer found for your account."
+                        ? customersQuery.isLoading
+                          ? "Loading assigned products..."
+                          : "No assigned customer code found for your account."
                         : "Please select a Customer Sell Code."
                     }
                   />

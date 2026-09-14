@@ -39,7 +39,7 @@ function WorkflowsPage() {
       ) : isLoading ? (
         <EmptyState message="Loading workflows from backend..." />
       ) : workflows.length === 0 ? (
-        <EmptyState message="No workflows returned by backend." />
+        <EmptyState message="No workflows returned  ." />
       ) : (
         <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
           <div className="rounded-xl border border-border bg-card">
@@ -91,7 +91,7 @@ function WorkflowsPage() {
             <ol className="p-6 space-y-3">
               {steps.length === 0 ? (
                 <li className="text-sm text-muted-foreground">
-                  No workflow steps returned by backend.
+                  No workflow steps returned  .
                 </li>
               ) : (
                 steps.map((step, index) => (

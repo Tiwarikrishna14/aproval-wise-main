@@ -122,7 +122,7 @@ function InventoryPage() {
                   {isLoading ? (
                     <TableLoadingRows columns={9} />
                   ) : inventory.length === 0 ? (
-                    <TableMessageRow columns={9} message="No inventory returned by backend." />
+                    <TableMessageRow columns={9} message="No inventory returned  ." />
                   ) : (
                     inventory.map((item) => (
                       <tr key={item.sku} className="border-t border-border hover:bg-surface/50">

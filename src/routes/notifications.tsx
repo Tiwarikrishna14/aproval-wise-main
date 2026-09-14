@@ -55,7 +55,7 @@ function NotificationsPage() {
                 <li className="p-4 text-sm text-muted-foreground">Loading notifications...</li>
               ) : notifications.length === 0 ? (
                 <li className="p-4 text-sm text-muted-foreground">
-                  No notifications returned by backend.
+                  No notifications returned  .
                 </li>
               ) : (
                 notifications.map((notification) => (
