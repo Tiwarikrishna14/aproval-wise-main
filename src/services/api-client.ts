@@ -301,6 +301,22 @@ export async function apiPutForm<T>(path: string, body: FormData, init?: Request
   });
 }
 
+export async function apiPatch<T, TBody = unknown>(
+  path: string,
+  body?: TBody,
+  init?: RequestInit,
+): Promise<T> {
+  return apiRequest<T>(path, {
+    ...init,
+    method: "PATCH",
+    body: body == null ? undefined : JSON.stringify(body),
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+}
+
 export async function apiDelete<T>(path: string, init?: RequestInit): Promise<T> {
   return apiRequest<T>(path, {
     ...init,

@@ -1,20 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Power, Search, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { DeactivateDialog } from "@/components/deactivate-dialog";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -302,11 +294,18 @@ function CustomersPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  const deleteCustomer = useMutation({
-    mutationFn: (id: string) => businessCustomersApi.delete(id),
+  const deleteValidationQuery = useQuery({
+    queryKey: ["business-customer-delete-validation", deleteTarget?.id],
+    queryFn: async () => (await businessCustomersApi.deleteValidation(deleteTarget!.id)).data,
+    enabled: Boolean(deleteTarget),
+    retry: false,
+  });
+
+  const deactivateCustomer = useMutation({
+    mutationFn: (id: string) => businessCustomersApi.deactivate(id, true),
     onSuccess: async () => {
       setDeleteTarget(null);
-      toast.success("Business customer deleted successfully");
+      toast.success("Business customer deactivated successfully");
       await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
     },
     onError: (error) => toast.error(error.message),
@@ -373,7 +372,7 @@ function CustomersPage() {
   }
 
   function closeDeleteDialog(open: boolean) {
-    if (open || deleteCustomer.isPending) return;
+    if (open || deactivateCustomer.isPending) return;
     setDeleteTarget(null);
   }
 
@@ -412,8 +411,8 @@ function CustomersPage() {
   }
 
   function confirmDelete() {
-    if (!deleteTarget || deleteCustomer.isPending) return;
-    deleteCustomer.mutate(deleteTarget.id);
+    if (!deleteTarget || deactivateCustomer.isPending || !deleteValidationQuery.data) return;
+    deactivateCustomer.mutate(deleteTarget.id);
   }
 
   if (!canView && !canCreate) {
@@ -445,7 +444,7 @@ function CustomersPage() {
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card">
-          <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_210px_190px_170px_150px_auto_auto]">
+          <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -527,8 +526,19 @@ function CustomersPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className={canUpdate ? "w-[13%]" : "w-[15%]"} />
+                <col className={canUpdate ? "w-[9%]" : "w-[10%]"} />
+                <col className={canUpdate ? "w-[16%]" : "w-[19%]"} />
+                <col className={canUpdate ? "w-[15%]" : "w-[18%]"} />
+                <col className={canUpdate ? "w-[13%]" : "w-[15%]"} />
+                <col className={canUpdate ? "w-[10%]" : "w-[11%]"} />
+                <col className={canUpdate ? "w-[8%]" : "w-[7%]"} />
+                <col className={canUpdate ? "w-[8%]" : "w-[5%]"} />
+                {canUpdate ? <col className="w-[8%]" /> : null}
+              </colgroup>
+              <thead className="bg-surface text-[11px] uppercase tracking-normal text-muted-foreground">
                 <tr>
                   {[
                     "Customer",
@@ -541,7 +551,10 @@ function CustomersPage() {
                     "Updated",
                     ...(canUpdate ? [""] : []),
                   ].map((header) => (
-                    <th key={header} className="px-4 py-3 text-left font-medium">
+                    <th
+                      key={header}
+                      className="whitespace-normal break-words px-3 py-3 text-left align-top font-medium leading-tight"
+                    >
                       {header}
                     </th>
                   ))}
@@ -553,9 +566,11 @@ function CustomersPage() {
                 ) : customers.length ? (
                   customers.map((customer) => (
                     <tr key={customer.id} className="border-t border-border hover:bg-surface/50">
-                      <td className="px-4 py-3 font-medium">{customer.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{customer.customerCode}</td>
-                      <td className="px-4 py-3">
+                      <td className="break-words px-3 py-3 font-medium">{customer.name}</td>
+                      <td className="break-words px-3 py-3 text-muted-foreground">
+                        {customer.customerCode}
+                      </td>
+                      <td className="break-words px-3 py-3">
                         <div>
                           {organizationLabel(
                             customer.organizationId ||
@@ -567,7 +582,7 @@ function CustomersPage() {
                           {branchLabel(customer.branchId)}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="break-words px-3 py-3">
                         <div>
                           {[customer.city, customer.state].filter(Boolean).join(", ") || "-"}
                         </div>
@@ -575,19 +590,23 @@ function CustomersPage() {
                           {[customer.address, customer.pincode].filter(Boolean).join(" - ")}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{customer.email || "-"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{customer.phone || "-"}</td>
-                      <td className="px-4 py-3">
+                      <td className="break-all px-3 py-3 text-muted-foreground">
+                        {customer.email || "-"}
+                      </td>
+                      <td className="break-words px-3 py-3 text-muted-foreground">
+                        {customer.phone || "-"}
+                      </td>
+                      <td className="px-3 py-3">
                         <StatusBadge
                           status={customer.status === "ACTIVE" ? "Approved" : "Cancelled"}
                         />
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="break-words px-3 py-3 text-muted-foreground">
                         {formatDate(customer.updatedAt || customer.createdAt)}
                       </td>
                       {canUpdate ? (
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap justify-end gap-2">
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap justify-end gap-1.5">
                             <Button
                               type="button"
                               size="sm"
@@ -605,8 +624,8 @@ function CustomersPage() {
                                 className="text-destructive hover:text-destructive"
                                 onClick={() => setDeleteTarget(customer)}
                               >
-                                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                                Delete
+                                <Power className="mr-1.5 h-3.5 w-3.5" />
+                                Deactivate
                               </Button>
                             ) : null}
                           </div>
@@ -798,30 +817,16 @@ function CustomersPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={closeDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete business customer?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget
-                ? `This will mark ${deleteTarget.name} as INACTIVE. It will no longer appear in the normal active customer list.`
-                : "This will mark the customer as INACTIVE."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteCustomer.isError ? <InlineError message={deleteCustomer.error.message} /> : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteCustomer.isPending}>Cancel</AlertDialogCancel>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteCustomer.isPending || !deleteTarget}
-              onClick={confirmDelete}
-            >
-              {deleteCustomer.isPending ? "Deleting..." : "Delete Customer"}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeactivateDialog
+        open={Boolean(deleteTarget)}
+        entityName={deleteTarget?.name || "business customer"}
+        validation={deleteValidationQuery.data}
+        validating={deleteValidationQuery.isLoading}
+        deactivating={deactivateCustomer.isPending}
+        error={deleteValidationQuery.error?.message || deactivateCustomer.error?.message}
+        onOpenChange={closeDeleteDialog}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

@@ -749,7 +749,7 @@ function UsersPage() {
         </div>
       ) : hasViewAccess ? (
         <div className="rounded-xl border border-border bg-card">
-          <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_190px_220px_150px_170px_auto_auto]">
+          <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -845,11 +845,36 @@ function UsersPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface text-xs uppercase tracking-wider text-muted-foreground">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                {hasRoleViewAccess ? (
+                  <>
+                    <col className="w-[16%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[20%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                  </>
+                ) : (
+                  <>
+                    <col className="w-[20%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[25%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                  </>
+                )}
+              </colgroup>
+              <thead className="bg-surface text-[11px] uppercase tracking-normal text-muted-foreground">
                 <tr>
                   {tableHeaders.map((header) => (
-                    <th key={header} className="px-4 py-3 text-left font-medium">
+                    <th
+                      key={header}
+                      className="whitespace-normal break-words px-3 py-3 text-left align-top font-medium leading-tight"
+                    >
                       {header}
                     </th>
                   ))}
@@ -861,9 +886,9 @@ function UsersPage() {
                 ) : users.length > 0 ? (
                   users.map((record) => (
                     <tr key={record.id} className="border-t border-border hover:bg-surface/50">
-                      <td className="px-4 py-3 font-medium">{fullUserName(record)}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{record.email}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="break-words px-3 py-3 font-medium">{fullUserName(record)}</td>
+                      <td className="break-all px-3 py-3 text-muted-foreground">{record.email}</td>
+                      <td className="break-words px-3 py-3 text-muted-foreground">
                         <span>
                           {organizationLabel(record.organizationId, record.organizationName)}
                         </span>
@@ -878,21 +903,21 @@ function UsersPage() {
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <StatusBadge status={statusForBadge(record.status)} />
                       </td>
                       {hasRoleViewAccess ? (
-                        <td className="max-w-[280px] px-4 py-3 text-muted-foreground">
+                        <td className="break-words px-3 py-3 text-muted-foreground">
                           <span className="line-clamp-1">
                             {(record.roles ?? []).join(", ") || "-"}
                           </span>
                         </td>
                       ) : null}
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="break-words px-3 py-3 text-muted-foreground">
                         {formatDate(record.createdAt)}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap justify-end gap-2">
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap justify-end gap-1.5">
                           {hasUpdateAccess ? (
                             <Button
                               size="sm"

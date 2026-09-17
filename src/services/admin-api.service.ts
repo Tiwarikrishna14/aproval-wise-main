@@ -1,4 +1,12 @@
-import { apiDelete, apiGet, apiPost, apiPostForm, apiPut, apiPutForm } from "./api-client";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiPostForm,
+  apiPut,
+  apiPutForm,
+} from "./api-client";
 
 export type ApiEnvelope<T> = {
   success: boolean;
@@ -15,6 +23,15 @@ export type PageResponse<T> = {
   totalElements: number;
   totalPages: number;
   last: boolean;
+};
+
+export type DeleteValidationResponse = {
+  hasWarnings: boolean;
+  message: string;
+  warnings: string[];
+  counts: Partial<
+    Record<"users" | "branches" | "businessCustomers" | "products" | "notDeliveredOrders", number>
+  >;
 };
 
 export type OrganizationResponse = {
@@ -199,6 +216,14 @@ export const organizationsApi = {
     apiPost<ApiEnvelope<OrganizationResponse>>("/api/organizations", body),
   update: (id: string, body: UpdateOrganizationRequest) =>
     apiPut<ApiEnvelope<OrganizationResponse>>(`/api/organizations/${id}`, body),
+  updateStatus: (id: string, status: OrganizationResponse["status"]) =>
+    apiPatch<ApiEnvelope<OrganizationResponse>>(`/api/organizations/${id}/status`, { status }),
+  deleteValidation: (id: string) =>
+    apiGet<ApiEnvelope<DeleteValidationResponse>>(`/api/organizations/${id}/delete-validation`),
+  deactivate: (id: string, force = true) =>
+    apiDelete<ApiEnvelope<OrganizationResponse>>(
+      `/api/organizations/${id}${force ? "?force=true" : ""}`,
+    ),
 };
 
 export type BranchResponse = {
@@ -232,8 +257,8 @@ export type CreateBranchRequest = {
   address?: string;
 };
 
-export type UpdateBranchRequest = CreateBranchRequest & {
-  status?: BranchResponse["status"];
+export type UpdateBranchRequest = Omit<CreateBranchRequest, "branchCode"> & {
+  status: BranchResponse["status"];
 };
 
 export const branchesApi = {
@@ -252,6 +277,10 @@ export const branchesApi = {
     ),
   update: (id: string, body: UpdateBranchRequest) =>
     apiPut<ApiEnvelope<BranchResponse>>(`/api/branches/${id}`, body),
+  deleteValidation: (id: string) =>
+    apiGet<ApiEnvelope<DeleteValidationResponse>>(`/api/branches/${id}/delete-validation`),
+  deactivate: (id: string, force = true) =>
+    apiDelete<ApiEnvelope<BranchResponse>>(`/api/branches/${id}${force ? "?force=true" : ""}`),
 };
 
 export type BusinessCustomerResponse = {
@@ -343,8 +372,14 @@ export const businessCustomersApi = {
     ),
   update: (id: string, body: UpdateBusinessCustomerRequest) =>
     apiPut<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`, body),
-  delete: (id: string) =>
-    apiDelete<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`),
+  deleteValidation: (id: string) =>
+    apiGet<ApiEnvelope<DeleteValidationResponse>>(
+      `/api/business-customers/${id}/delete-validation`,
+    ),
+  deactivate: (id: string, force = true) =>
+    apiDelete<ApiEnvelope<BusinessCustomerResponse>>(
+      `/api/business-customers/${id}${force ? "?force=true" : ""}`,
+    ),
 };
 
 export const permissionsApi = {
