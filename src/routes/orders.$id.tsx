@@ -168,7 +168,20 @@ function OrderDetail() {
               <Meta k="Customer" v={order.businessCustomerName || order.businessCustomerCode} />
               <Meta k="Created" v={formatDate(order.createdAt)} />
               <Meta k="Reference" v={order.referenceNumber} />
-              <Meta k="Location" v={order.location} />
+              <Meta
+                k="Location"
+                v={
+                  order.locationDetails
+                    ? [
+                        order.locationDetails.locationCode,
+                        order.locationDetails.locationName,
+                        order.locationDetails.city,
+                      ]
+                        .filter(Boolean)
+                        .join(" - ")
+                    : order.location
+                }
+              />
               <Meta k="Priority" v={order.priority} />
               <Meta k="Expected" v={formatDate(order.expectedDeliveryDate)} />
               <Meta k="Total" v={formatMoney(order.totalAmount)} />
@@ -212,6 +225,7 @@ function OrderDetail() {
                 <SummaryBlock title="Notes" value={order.notes} />
                 <SummaryBlock title="Remarks" value={order.remarks} />
               </div>
+              <OrderLocationDetails order={order} />
             </TabsContent>
 
             <TabsContent value="products" className="p-0">
@@ -498,6 +512,28 @@ function SummaryBlock({ title, value }: { title: string; value?: string }) {
         {title}
       </div>
       <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{value || "-"}</p>
+    </div>
+  );
+}
+
+function OrderLocationDetails({ order }: { order: OrderResponse }) {
+  const location = order.locationDetails;
+  if (!location) return <SummaryBlock title="Delivery Location" value={order.location} />;
+
+  return (
+    <div className="mt-5 rounded-md border border-border bg-surface/50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+        Delivery Location
+      </div>
+      <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <Meta k="Code" v={location.locationCode} />
+        <Meta k="Name" v={location.locationName} />
+        <Meta k="City / State" v={[location.city, location.state].filter(Boolean).join(", ")} />
+        <Meta k="Pincode" v={location.pincode} />
+        <Meta k="Permanent Address" v={location.permanentAddress || location.address} />
+        <Meta k="Corresponding Address" v={location.correspondingAddress} />
+        <Meta k="Same as Permanent" v={location.sameAsPermanentAddress ? "Yes" : "No"} />
+      </div>
     </div>
   );
 }

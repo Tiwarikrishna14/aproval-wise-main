@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Pencil, Plus, Power, Search, X } from "lucide-react";
+import { MapPin, Pencil, Plus, Power, Search, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { DeactivateDialog } from "@/components/deactivate-dialog";
+import { BusinessCustomerLocationsDialog } from "@/components/business-customer-locations-dialog";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -112,6 +113,7 @@ function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<BusinessCustomerResponse | null>(null);
   const [editForm, setEditForm] = useState<EditCustomerForm>(emptyEditForm);
   const [deleteTarget, setDeleteTarget] = useState<BusinessCustomerResponse | null>(null);
+  const [locationsCustomer, setLocationsCustomer] = useState<BusinessCustomerResponse | null>(null);
 
   useEffect(() => {
     const pincode = form.pincode.replace(/\D/g, "");
@@ -566,7 +568,21 @@ function CustomersPage() {
                 ) : customers.length ? (
                   customers.map((customer) => (
                     <tr key={customer.id} className="border-t border-border hover:bg-surface/50">
-                      <td className="break-words px-3 py-3 font-medium">{customer.name}</td>
+                      <td className="break-words px-3 py-3 font-medium">
+                        <div>{customer.name}</div>
+                        {canView ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="mt-1 h-7 px-1.5 text-xs text-muted-foreground"
+                            onClick={() => setLocationsCustomer(customer)}
+                          >
+                            <MapPin className="mr-1 h-3.5 w-3.5" />
+                            Locations
+                          </Button>
+                        ) : null}
+                      </td>
                       <td className="break-words px-3 py-3 text-muted-foreground">
                         {customer.customerCode}
                       </td>
@@ -826,6 +842,14 @@ function CustomersPage() {
         error={deleteValidationQuery.error?.message || deactivateCustomer.error?.message}
         onOpenChange={closeDeleteDialog}
         onConfirm={confirmDelete}
+      />
+      <BusinessCustomerLocationsDialog
+        customer={locationsCustomer}
+        canCreate={canCreate}
+        canUpdate={canUpdate}
+        onOpenChange={(open) => {
+          if (!open) setLocationsCustomer(null);
+        }}
       />
     </div>
   );

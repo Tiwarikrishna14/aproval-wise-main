@@ -127,6 +127,7 @@ export type RoleResponse = {
   name: string;
   description?: string;
   systemRole: boolean;
+  level?: number;
   active: boolean;
   permissions: string[];
   createdAt?: string;
@@ -143,6 +144,22 @@ export type PermissionResponse = {
   name: string;
   description?: string;
   module?: string;
+  delegationLevel?: number;
+};
+
+export type CreateRoleRequest = {
+  organizationId?: string | null;
+  name: string;
+  description?: string;
+  systemRole: false;
+  level?: number;
+};
+
+export type UpdateRoleRequest = {
+  name: string;
+  description?: string;
+  active: boolean;
+  level?: number;
 };
 
 export type PageableQuery = {
@@ -200,6 +217,10 @@ export const usersApi = {
 export const rolesApi = {
   list: (query?: PageableQuery) =>
     apiGet<ApiEnvelope<PageResponse<RoleResponse>>>(`/api/roles?${buildSearchParams(query)}`),
+  assignable: () => apiGet<ApiEnvelope<RoleResponse[]>>("/api/roles/assignable"),
+  create: (body: CreateRoleRequest) => apiPost<ApiEnvelope<RoleResponse>>("/api/roles", body),
+  update: (id: string, body: UpdateRoleRequest) =>
+    apiPut<ApiEnvelope<RoleResponse>>(`/api/roles/${id}`, body),
   assignPermissions: (id: string, body: AssignPermissionsRequest) =>
     apiPost<ApiEnvelope<RoleResponse>>(`/api/roles/${id}/permissions`, body),
   removePermission: (id: string, permissionId: string) =>
@@ -315,6 +336,51 @@ export type UpdateBusinessCustomerRequest = Omit<CreateBusinessCustomerRequest, 
   status?: BusinessCustomerResponse["status"];
 };
 
+export type BusinessCustomerLocationResponse = {
+  id: string;
+  businessCustomerId: string;
+  organizationId?: string | null;
+  branchId?: string | null;
+  locationCode: string;
+  locationName: string;
+  city: string;
+  state?: string;
+  address?: string;
+  permanentAddress?: string;
+  correspondingAddress?: string;
+  sameAsPermanentAddress: boolean;
+  pincode?: string;
+  status: "ACTIVE" | "INACTIVE";
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateBusinessCustomerLocationRequest = {
+  locationCode: string;
+  locationName: string;
+  city: string;
+  state?: string;
+  address?: string;
+  permanentAddress?: string;
+  correspondingAddress?: string;
+  sameAsPermanentAddress: boolean;
+  pincode?: string;
+};
+
+export type UpdateBusinessCustomerLocationRequest = Omit<
+  CreateBusinessCustomerLocationRequest,
+  "locationCode"
+> & {
+  status: BusinessCustomerLocationResponse["status"];
+};
+
+export type BusinessCustomerLocationListQuery = PageableQuery & {
+  businessCustomerId?: string;
+  customerCode?: string;
+  organizationId?: string;
+  status?: BusinessCustomerLocationResponse["status"];
+};
+
 export type BusinessCustomerListQuery = PageableQuery & {
   organizationId?: string;
   branchId?: string;
@@ -382,8 +448,51 @@ export const businessCustomersApi = {
     ),
 };
 
+function businessCustomerLocationParams(filters: BusinessCustomerLocationListQuery) {
+  const params = new URLSearchParams();
+  if (filters.businessCustomerId) params.set("businessCustomerId", filters.businessCustomerId);
+  if (filters.customerCode) params.set("customerCode", filters.customerCode);
+  if (filters.organizationId) params.set("organizationId", filters.organizationId);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.search) params.set("search", filters.search);
+  params.set("page", String(filters.page ?? 0));
+  params.set("size", String(filters.size ?? 20));
+  filters.sort?.forEach((sort) => params.append("sort", sort));
+  return params.toString();
+}
+
+export const businessCustomerLocationsApi = {
+  list: (filters: BusinessCustomerLocationListQuery) =>
+    apiGet<
+      ApiEnvelope<
+        PageResponse<BusinessCustomerLocationResponse> | BusinessCustomerLocationResponse[]
+      >
+    >(`/api/business-customer-locations?${businessCustomerLocationParams(filters)}`),
+  listByCustomerCode: (filters: BusinessCustomerLocationListQuery & { customerCode: string }) =>
+    apiGet<
+      ApiEnvelope<
+        PageResponse<BusinessCustomerLocationResponse> | BusinessCustomerLocationResponse[]
+      >
+    >(
+      `/api/business-customer-locations/by-customer-code?${businessCustomerLocationParams(filters)}`,
+    ),
+  get: (id: string) =>
+    apiGet<ApiEnvelope<BusinessCustomerLocationResponse>>(`/api/business-customer-locations/${id}`),
+  create: (businessCustomerId: string, body: CreateBusinessCustomerLocationRequest) =>
+    apiPost<ApiEnvelope<BusinessCustomerLocationResponse>>(
+      `/api/business-customer-locations?businessCustomerId=${encodeURIComponent(businessCustomerId)}`,
+      body,
+    ),
+  update: (id: string, body: UpdateBusinessCustomerLocationRequest) =>
+    apiPut<ApiEnvelope<BusinessCustomerLocationResponse>>(
+      `/api/business-customer-locations/${id}`,
+      body,
+    ),
+};
+
 export const permissionsApi = {
   list: () => apiGet<ApiEnvelope<PermissionResponse[]>>("/api/permissions"),
+  assignable: () => apiGet<ApiEnvelope<PermissionResponse[]>>("/api/permissions/assignable"),
 };
 
 export const productsApi = {

@@ -133,6 +133,7 @@ function OrdersPage() {
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Order</th>
                 <th className="px-4 py-3 text-left font-medium">Customer</th>
+                <th className="px-4 py-3 text-left font-medium">Location Code</th>
                 <th className="px-4 py-3 text-left font-medium">Created</th>
                 <th className="px-4 py-3 text-right font-medium">Products</th>
                 <th className="px-4 py-3 text-right font-medium">Amount</th>
@@ -143,15 +144,15 @@ function OrdersPage() {
             </thead>
             <tbody>
               {ordersQuery.isLoading ? (
-                <TableLoadingRows columns={8} />
+                <TableLoadingRows columns={9} />
               ) : ordersQuery.isError ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-destructive">
+                  <td colSpan={9} className="px-4 py-10 text-center text-destructive">
                     Failed to load orders: {ordersQuery.error.message}
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
-                <TableMessageRow columns={8} message="No orders returned  ." />
+                <TableMessageRow columns={9} message="No orders returned  ." />
               ) : (
                 orders.map((order) => <OrderRow key={order.id} order={order} />)
               )}
@@ -227,6 +228,12 @@ function OrderRow({ order }: { order: OrderResponse }) {
       <td className="px-4 py-3">
         <div>{order.businessCustomerName || "-"}</div>
         <div className="text-xs text-muted-foreground">{order.businessCustomerCode || "-"}</div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="font-medium">{order.locationDetails?.locationCode || "-"}</div>
+        <div className="text-xs text-muted-foreground">
+          {order.locationDetails?.locationName || order.location || "-"}
+        </div>
       </td>
       <td className="px-4 py-3 text-muted-foreground">{formatDate(order.createdAt)}</td>
       <td className="px-4 py-3 text-right tabular-nums">{items.length}</td>

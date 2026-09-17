@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import {
   businessCustomersApi,
+  businessCustomerLocationsApi,
   productRecords,
   productsApi,
   usersApi,
@@ -119,6 +120,9 @@ export function OrderForm({
   const authCustomerSellCode =
     user?.customerSellCode || user?.customerCode || user?.businessCustomerCode || "";
   const assignedBusinessCustomerId = user?.businessCustomerId;
+  const canViewCustomerLocations =
+    hasPermission(user, "CUSTOMER_VIEW") ||
+    Boolean(assignedBusinessCustomerId || authCustomerSellCode);
   const [customerSellCode, setCustomerSellCode] = useState(
     initialOrder?.businessCustomerCode || authCustomerSellCode,
   );
@@ -135,6 +139,9 @@ export function OrderForm({
   const [selectedProductId, setSelectedProductId] = useState("");
   const [approverIds, setApproverIds] = useState<string[]>(() => initialApproverIds(initialOrder));
   const [selectedApproverId, setSelectedApproverId] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState(
+    initialOrder?.businessCustomerLocationId || initialOrder?.locationDetails?.id || "",
+  );
   const [formError, setFormError] = useState("");
   const [confirmRemoveAllOpen, setConfirmRemoveAllOpen] = useState(false);
   const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null);
@@ -215,6 +222,16 @@ export function OrderForm({
     if (customerSellCodes.length === 1) setCustomerSellCode(customerSellCodes[0].code);
   }, [assignedCustomerQuery.data?.customerCode, customerSellCode, customerSellCodes]);
 
+  useEffect(() => {
+    if (
+      initialOrder?.businessCustomerCode &&
+      customerSellCode === initialOrder.businessCustomerCode
+    ) {
+      return;
+    }
+    setSelectedLocationId("");
+  }, [customerSellCode, initialOrder?.businessCustomerCode]);
+
   const productsQuery = useQuery({
     queryKey: ["orders", "form", "products", customerSellCode],
     queryFn: async () =>
@@ -237,7 +254,35 @@ export function OrderForm({
     staleTime: 60 * 1000,
   });
 
+  const locationsQuery = useQuery({
+    queryKey: ["orders", "form", "locations", approverBusinessCustomerId, customerSellCode],
+    queryFn: async () => {
+      if (approverBusinessCustomerId) {
+        return (
+          await businessCustomerLocationsApi.list({
+            businessCustomerId: approverBusinessCustomerId,
+            status: "ACTIVE",
+            size: 100,
+          })
+        ).data;
+      }
+      return (
+        await businessCustomerLocationsApi.listByCustomerCode({
+          customerCode: customerSellCode,
+          status: "ACTIVE",
+          size: 100,
+        })
+      ).data;
+    },
+    enabled: canViewCustomerLocations && Boolean(approverBusinessCustomerId || customerSellCode),
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+
   const products = productRecords(productsQuery.data);
+  const savedLocations = Array.isArray(locationsQuery.data)
+    ? locationsQuery.data
+    : (locationsQuery.data?.content ?? []);
   const productsById = new Map(products.map((product) => [product.id, product]));
   const eligibleApprovers = [...initialApprovers, ...(approversQuery.data ?? [])].filter(
     (approver, index, approvers) =>
@@ -329,7 +374,8 @@ export function OrderForm({
       notes: form.notes.trim(),
       remarks: form.remarks.trim(),
       priority: form.priority.trim(),
-      location: form.location.trim(),
+      location: selectedLocationId ? undefined : form.location.trim(),
+      businessCustomerLocationId: selectedLocationId || undefined,
       referenceNumber: form.referenceNumber.trim(),
       products: productRows.map((row) => ({
         productId: row.productId,
@@ -344,14 +390,37 @@ export function OrderForm({
   return (
     <form className="space-y-5" onSubmit={submit}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Location" id="order-location">
-          <Input
-            id="order-location"
-            value={form.location}
-            onChange={(event) => updateField("location", event.target.value)}
-            placeholder="Delivery location"
-          />
-        </Field>
+        {savedLocations.length || locationsQuery.isLoading ? (
+          <Field label="Location Code" id="order-location">
+            <select
+              id="order-location"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={selectedLocationId}
+              onChange={(event) => setSelectedLocationId(event.target.value)}
+              disabled={locationsQuery.isLoading}
+            >
+              <option value="">
+                {locationsQuery.isLoading ? "Loading locations..." : "Select saved location"}
+              </option>
+              {savedLocations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {[location.locationCode, location.locationName, location.city]
+                    .filter(Boolean)
+                    .join(" - ")}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : (
+          <Field label="Location" id="order-location">
+            <Input
+              id="order-location"
+              value={form.location}
+              onChange={(event) => updateField("location", event.target.value)}
+              placeholder="Delivery location"
+            />
+          </Field>
+        )}
         <Field label="Reference Number" id="order-reference">
           <Input
             id="order-reference"

@@ -24,12 +24,7 @@ import {
 } from "lucide-react";
 import { Logo } from "./logo";
 import { useRole, type Role } from "@/lib/role-context";
-import {
-  hasAnyPermission,
-  hasPermission,
-  isCustomerAccountUser,
-  isSuperAdmin,
-} from "@/lib/permissions";
+import { hasAnyPermission, hasPermission, isCustomerAccountUser } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import type { AuthUser } from "@/services/auth.service";
@@ -40,7 +35,6 @@ type NavItem = {
   icon: LucideIcon;
   permission?: string;
   anyPermission?: string[];
-  superAdminOnly?: boolean;
 };
 
 const customerNav: NavItem[] = [
@@ -100,8 +94,7 @@ const adminNav: NavItem[] = [
     label: "Roles & Permissions",
     to: "/roles",
     icon: KeyRound,
-    permission: "ROLE_VIEW",
-    superAdminOnly: true,
+    anyPermission: ["ROLE_VIEW", "ROLE_CREATE", "ROLE_UPDATE", "ROLE_ASSIGN"],
   },
   { label: "Reports", to: "/reports", icon: BarChart3 },
   { label: "FAQ Management", to: "/faq", icon: HelpCircle },
@@ -164,7 +157,6 @@ function navForRole(role: Role): NavItem[] {
 
 function canSeeNavItem(item: NavItem, user: AuthUser | null) {
   if (isCustomerAccountUser(user) && item.to === "/customers") return false;
-  if (item.superAdminOnly && !isSuperAdmin(user)) return false;
   if (item.permission && !hasPermission(user, item.permission)) return false;
   if (item.anyPermission && !hasAnyPermission(user, item.anyPermission)) return false;
 

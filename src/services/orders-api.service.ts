@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiPut } from "./api-client";
 import type { ApiEnvelope, PageResponse, PageableQuery } from "./admin-api.service";
+import type { BusinessCustomerLocationResponse } from "./admin-api.service";
 
 export type OrderStatus =
   | "DRAFT"
@@ -54,6 +55,10 @@ export type OrderResponse = {
   branchId?: string;
   businessCustomerId?: string;
   businessCustomerLocationId?: string;
+  locationDetails?: Omit<
+    BusinessCustomerLocationResponse,
+    "status" | "createdAt" | "updatedAt"
+  > | null;
   businessCustomerCode?: string;
   businessCustomerName?: string;
   createdBy?: string;
@@ -85,6 +90,8 @@ export type OrderMutationRequest = {
   remarks?: string;
   priority?: string;
   location?: string;
+  businessCustomerLocationId?: string;
+  locationCode?: string;
   referenceNumber?: string;
   products: OrderProductRequest[];
   approverIds: string[];

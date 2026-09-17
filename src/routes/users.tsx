@@ -70,6 +70,14 @@ const userRolesQueryOptions = {
   refetchOnWindowFocus: false,
 };
 
+const assignableUserRolesQueryOptions = {
+  queryKey: ["admin", "users", "assignable-roles"] as const,
+  queryFn: async () => (await rolesApi.assignable()).data,
+  staleTime: 60 * 1000,
+  retry: false,
+  refetchOnWindowFocus: false,
+};
+
 const userBranchesQueryOptions = {
   queryKey: ["admin", "users", "branches"] as const,
   queryFn: async () => branchRecords((await branchesApi.list({ size: 100 })).data),
@@ -170,12 +178,6 @@ function fullUserName(record: UserResponse) {
   return [record.firstName, record.lastName].filter(Boolean).join(" ") || record.email;
 }
 
-function isImportantRole(roleName: string) {
-  return ["SUPER_ADMIN", "ORG_ADMIN", "ORGANIZATION_ADMIN", "BRANCH_ADMIN"].includes(
-    roleKey(roleName),
-  );
-}
-
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -205,7 +207,8 @@ function UsersPage() {
   const hasUpdateAccess = hasPermission(user, "USER_UPDATE");
   const hasOrganizationViewAccess = hasPermission(user, "ORGANIZATION_VIEW");
   const hasRoleViewAccess = hasPermission(user, "ROLE_VIEW");
-  const hasRoleManageAccess = hasUpdateAccess && hasRoleViewAccess;
+  const hasRoleAssignmentAccess = hasPermission(user, "ROLE_ASSIGN");
+  const hasRoleManageAccess = hasUpdateAccess && hasRoleAssignmentAccess;
   const hasDeleteAccess = hasUpdateAccess;
   const isSa = isSuperAdmin(user);
   const assignedOrganizationId = isSa ? "" : (user?.organizationId ?? "");
@@ -326,6 +329,10 @@ function UsersPage() {
     ...userRolesQueryOptions,
     enabled: hasRoleViewAccess && (hasViewAccess || hasCreateAccess || hasRoleManageAccess),
   });
+  const assignableRolesQuery = useQuery({
+    ...assignableUserRolesQueryOptions,
+    enabled: hasRoleAssignmentAccess && (hasCreateAccess || hasRoleManageAccess),
+  });
   const users = userRecords(usersQuery.data);
   const usersPageResponse = userPageResponse(usersQuery.data);
   const totalUsers = usersPageResponse?.totalElements ?? users.length;
@@ -342,7 +349,8 @@ function UsersPage() {
     ? filterBusinessCustomersQuery.data
     : (filterBusinessCustomersQuery.data?.content ?? []);
   const roles = rolesQuery.data ?? [];
-  const rolesByName = roleByName(roles);
+  const backendAssignableRoles = assignableRolesQuery.data ?? [];
+  const rolesByName = roleByName(backendAssignableRoles);
   const managedAssignedRoleNames = new Set(
     (managingRolesUser?.roles ?? []).map((roleName) => roleKey(roleName)),
   );
@@ -350,11 +358,10 @@ function UsersPage() {
     name: roleName,
     record: rolesByName.get(roleKey(roleName)),
   }));
-  const assignableRoles = roles.filter((role) => !managedAssignedRoleNames.has(roleKey(role.name)));
-  const availableRoles = roles.filter((role) => {
-    const isCustomerRole = role.name === "CUSTOMER" || role.name === "CUSTOMER_ADMIN";
-    return form.userType === "CUSTOMER" ? isCustomerRole : !isCustomerRole;
-  });
+  const assignableRoles = backendAssignableRoles.filter(
+    (role) => !managedAssignedRoleNames.has(roleKey(role.name)),
+  );
+  const availableRoles = backendAssignableRoles;
   const organizationsById = organizationNameById(organizations);
   const branchesById = branchNameById(branches);
   const businessCustomersById = businessCustomerNameById([
@@ -401,7 +408,11 @@ function UsersPage() {
     organizationsQuery.isLoading ||
     (!isBranchScopedCreator && branchesQuery.isLoading) ||
     rolesQuery.isLoading;
-  const isError = usersQuery.isError || organizationsQuery.isError || rolesQuery.isError;
+  const isError =
+    usersQuery.isError ||
+    organizationsQuery.isError ||
+    rolesQuery.isError ||
+    assignableRolesQuery.isError;
   const tableHeaders = hasRoleViewAccess
     ? ["User", "Email", "Organization", "Status", "Roles", "Created", ""]
     : ["User", "Email", "Organization", "Status", "Created", ""];
@@ -638,13 +649,7 @@ function UsersPage() {
       roleName,
     };
 
-    if (isImportantRole(roleName)) {
-      setRevokeRoleTarget(target);
-      return;
-    }
-
-    setRolesDialogError("");
-    revokeUserRole.mutate(target);
+    setRevokeRoleTarget(target);
   }
 
   function confirmRevokeRole() {
@@ -1186,11 +1191,13 @@ function UsersPage() {
               </Field>
             </div>
 
-            {hasRoleViewAccess ? (
+            {hasRoleAssignmentAccess ? (
               <div className="space-y-2">
                 <Label>Roles</Label>
                 <div className="grid max-h-48 gap-2 overflow-y-auto rounded-md border border-border p-3 sm:grid-cols-2">
-                  {availableRoles.length === 0 ? (
+                  {assignableRolesQuery.isLoading ? (
+                    <LoadingRoleOptions />
+                  ) : availableRoles.length === 0 ? (
                     <div className="text-sm text-muted-foreground">No roles returned.</div>
                   ) : (
                     availableRoles.map((role) => (
@@ -1374,7 +1381,7 @@ function UsersPage() {
                 </span>
               </div>
               <div className="grid max-h-64 gap-2 overflow-y-auto rounded-md border border-border p-3 sm:grid-cols-2">
-                {rolesQuery.isLoading ? (
+                {assignableRolesQuery.isLoading ? (
                   <LoadingRoleOptions />
                 ) : assignableRoles.length > 0 ? (
                   assignableRoles.map((role) => (
@@ -1443,7 +1450,7 @@ function UsersPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke important role?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke role?</AlertDialogTitle>
             <AlertDialogDescription>
               This will remove {revokeRoleTarget?.roleName} from the selected user. Their access can
               change immediately after this action.
