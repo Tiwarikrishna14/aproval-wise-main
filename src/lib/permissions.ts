@@ -18,6 +18,15 @@ function normalizedRoles(user: AuthUser | null | undefined) {
   return (user?.roles ?? []).map((role) => role.toUpperCase());
 }
 
+export function isOrganizationAdminUser(user: AuthUser | null | undefined) {
+  const roles = normalizedRoles(user);
+  return roles.includes("ORG_ADMIN") || roles.includes("ORGANIZATION_ADMIN");
+}
+
+export function isBranchScopedUser(user: AuthUser | null | undefined) {
+  return Boolean(user?.branchId) && !isSuperAdmin(user) && !isOrganizationAdminUser(user);
+}
+
 export function isCustomerAccountUser(user: AuthUser | null | undefined) {
   if (!user || isSuperAdmin(user)) return false;
 

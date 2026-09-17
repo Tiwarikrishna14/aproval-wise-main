@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission, isSuperAdmin } from "@/lib/permissions";
+import { hasPermission, isBranchScopedUser, isSuperAdmin } from "@/lib/permissions";
 import {
   branchRecords,
   branchesApi,
@@ -211,10 +211,11 @@ function UsersPage() {
   const hasRoleManageAccess = hasUpdateAccess && hasRoleAssignmentAccess;
   const hasDeleteAccess = hasUpdateAccess;
   const isSa = isSuperAdmin(user);
+  const branchScopedCreator = isBranchScopedUser(user);
   const assignedOrganizationId = isSa ? "" : (user?.organizationId ?? "");
-  const assignedBranchId = isSa ? "" : (user?.branchId ?? "");
+  const assignedBranchId = branchScopedCreator ? (user?.branchId ?? "") : "";
   const selectedCreateOrganizationId = form.organizationId || assignedOrganizationId;
-  const isBranchScopedCreator = Boolean(assignedBranchId);
+  const isBranchScopedCreator = branchScopedCreator;
   const scopedUsersBranchId = assignedBranchId || branchFilter || undefined;
   const usersQueryKey = [
     ...usersQueryOptions.queryKey,
@@ -293,13 +294,13 @@ function UsersPage() {
       "users",
       "business-customers",
       selectedCreateOrganizationId,
-      assignedBranchId,
+      assignedBranchId || form.branchId,
     ],
     queryFn: async () =>
       (
         await businessCustomersApi.list({
           organizationId: selectedCreateOrganizationId || undefined,
-          branchId: assignedBranchId || undefined,
+          branchId: assignedBranchId || form.branchId || undefined,
         })
       ).data,
     enabled: hasCreateAccess && form.userType === "CUSTOMER",

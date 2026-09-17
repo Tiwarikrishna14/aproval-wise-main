@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, isBranchScopedUser } from "@/lib/permissions";
 import {
   businessCustomersApi,
   businessCustomerLocationsApi,
@@ -120,6 +120,7 @@ export function OrderForm({
   const authCustomerSellCode =
     user?.customerSellCode || user?.customerCode || user?.businessCustomerCode || "";
   const assignedBusinessCustomerId = user?.businessCustomerId;
+  const scopedBranchId = isBranchScopedUser(user) ? user?.branchId : undefined;
   const canViewCustomerLocations =
     hasPermission(user, "CUSTOMER_VIEW") ||
     Boolean(assignedBusinessCustomerId || authCustomerSellCode);
@@ -147,12 +148,12 @@ export function OrderForm({
   const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null);
 
   const customersQuery = useQuery({
-    queryKey: ["orders", "form", "business-customers", user?.organizationId, user?.branchId],
+    queryKey: ["orders", "form", "business-customers", user?.organizationId, scopedBranchId],
     queryFn: async () =>
       (
         await businessCustomersApi.list({
           organizationId: user?.organizationId,
-          branchId: user?.branchId,
+          branchId: scopedBranchId,
         })
       ).data,
     enabled:

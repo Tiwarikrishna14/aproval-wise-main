@@ -21,7 +21,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission, isCustomerAccountUser, isSuperAdmin } from "@/lib/permissions";
+import {
+  hasPermission,
+  isBranchScopedUser,
+  isCustomerAccountUser,
+  isSuperAdmin,
+} from "@/lib/permissions";
 import {
   branchRecords,
   branchesApi,
@@ -97,16 +102,16 @@ function CustomersPage() {
   const canCreate = !isCustomerAccount && hasPermission(user, "CUSTOMER_CREATE");
   const canUpdate = !isCustomerAccount && hasPermission(user, "CUSTOMER_UPDATE");
   const isSa = isSuperAdmin(user);
+  const branchScopedUser = isBranchScopedUser(user);
   const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
-  const [branchId, setBranchId] = useState(user?.branchId ?? "");
+  const [branchId, setBranchId] = useState(branchScopedUser ? (user?.branchId ?? "") : "");
   const [searchInput, setSearchInput] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
   const [cityFilter, setCityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [customerPage, setCustomerPage] = useState(0);
   const [customerPageSize, setCustomerPageSize] = useState(20);
-  const isBranchScopedUser = !isSa && Boolean(user?.branchId);
-  const canChooseCustomerBranch = isSa || !isBranchScopedUser;
+  const canChooseCustomerBranch = !branchScopedUser;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [pincodeStatus, setPincodeStatus] = useState("");

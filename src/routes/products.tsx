@@ -57,7 +57,12 @@ import {
 import { getApiAssetUrl } from "@/services/api-client";
 
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission, isCustomerProductOnlyUser, isSuperAdmin } from "@/lib/permissions";
+import {
+  hasPermission,
+  isBranchScopedUser,
+  isCustomerProductOnlyUser,
+  isSuperAdmin,
+} from "@/lib/permissions";
 
 export const Route = createFileRoute("/products")({
   head: () => ({
@@ -714,6 +719,8 @@ function ProductsPage() {
   const canView = productOnlyCustomer || hasPermission(user, "PRODUCT_VIEW");
   const canCreate = !productOnlyCustomer && hasPermission(user, "PRODUCT_CREATE");
   const isSa = isSuperAdmin(user);
+  const branchScopedUser = isBranchScopedUser(user);
+  const canChooseBranch = !branchScopedUser && !productOnlyCustomer;
   const canManageProductRows = !productOnlyCustomer;
   const canEditProducts =
     canManageProductRows && (isSa || canCreate || hasPermission(user, "PRODUCT_UPDATE"));
@@ -732,7 +739,7 @@ function ProductsPage() {
 
   const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
 
-  const [branchId, setBranchId] = useState(isSa ? "" : (user?.branchId ?? ""));
+  const [branchId, setBranchId] = useState(branchScopedUser ? (user?.branchId ?? "") : "");
 
   /*
    * Selected Customer Sell Code.
@@ -825,7 +832,7 @@ function ProductsPage() {
         ).data,
       ),
 
-    enabled: isSa && Boolean(organizationId),
+    enabled: canChooseBranch && Boolean(organizationId),
 
     retry: false,
 
@@ -873,7 +880,7 @@ function ProductsPage() {
 
     enabled:
       (canView || canCreate) &&
-      (isSa
+      (canChooseBranch
         ? Boolean(organizationId) && Boolean(branchId)
         : Boolean(assignedBusinessCustomerId || organizationId || branchId)),
 
@@ -1422,7 +1429,7 @@ function ProductsPage() {
     if (!isSa) {
       setOrganizationId(user?.organizationId ?? "");
 
-      setBranchId(user?.branchId ?? "");
+      setBranchId(branchScopedUser ? (user?.branchId ?? "") : "");
 
       setCustomerSellCode("");
       setProductForm((current) => ({
@@ -1430,7 +1437,7 @@ function ProductsPage() {
         customerSellCode: "",
       }));
     }
-  }, [isSa, user?.businessCustomerId, user?.organizationId, user?.branchId]);
+  }, [branchScopedUser, isSa, user?.businessCustomerId, user?.organizationId, user?.branchId]);
 
   useEffect(() => {
     if (!assignedCustomerSellCode) return;
@@ -1648,7 +1655,7 @@ function ProductsPage() {
               Super Admin ONLY
               ================================================== */}
 
-            {isSa && (
+            {canChooseBranch && (
               <div className="space-y-2">
                 <Label htmlFor="customer-branch">Branch</Label>
 
@@ -1686,7 +1693,7 @@ function ProductsPage() {
                   onChange={(event) => setCustomerSellCode(event.target.value)}
                   disabled={
                     customersQuery.isLoading ||
-                    (isSa ? !organizationId || !branchId : sellCodes.length === 0)
+                    (canChooseBranch ? !organizationId || !branchId : sellCodes.length === 0)
                   }
                 >
                   <option value="">Select customer sell code</option>
@@ -1733,7 +1740,7 @@ function ProductsPage() {
             NORMAL USER MESSAGE
             ==================================================== */}
 
-          {!isSa && (
+          {branchScopedUser && (
             <div className="mt-3 text-xs text-muted-foreground">
               Organization and Branch are locked to your account. Customer Sell Code is limited to
               your assigned scope.
@@ -1773,7 +1780,7 @@ function ProductsPage() {
                     onChange={(event) => setBulkCustomerSellCode(event.target.value)}
                     disabled={
                       customersQuery.isLoading ||
-                      (isSa ? !organizationId || !branchId : sellCodes.length === 0)
+                      (canChooseBranch ? !organizationId || !branchId : sellCodes.length === 0)
                     }
                     required
                   >
