@@ -7,6 +7,15 @@ import { toast } from "sonner";
 import { DeactivateDialog } from "@/components/deactivate-dialog";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission, isSuperAdmin } from "@/lib/permissions";
+import { ApiError } from "@/services/api-client";
 import {
   branchRecords,
   branchesApi,
@@ -39,6 +49,11 @@ type BranchForm = {
   city: string;
   address: string;
   status: BranchResponse["status"];
+};
+type CreateBranchConflictResponse = {
+  success: false;
+  message: string;
+  data?: { canReactivate?: boolean | null };
 };
 const emptyForm: BranchForm = { branchCode: "", name: "", city: "", address: "", status: "ACTIVE" };
 
@@ -61,6 +76,7 @@ function BranchesPage() {
   const [editing, setEditing] = useState<BranchResponse | null>(null);
   const [form, setForm] = useState<BranchForm>(emptyForm);
   const [deactivateTarget, setDeactivateTarget] = useState<BranchResponse | null>(null);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
 
   const organizationsQuery = useQuery({
     queryKey: ["admin", "branches", "organizations"],
@@ -100,11 +116,28 @@ function BranchesPage() {
       toast.success("Branch created successfully");
       await queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        (error as ApiError<CreateBranchConflictResponse>).response?.data?.data?.canReactivate ===
+          true
+      ) {
+        setReactivateOpen(true);
+        return;
+      }
+      toast.error(error.message);
+    },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: UpdateBranchRequest }) =>
-      branchesApi.update(id, body),
+    mutationFn: ({
+      id,
+      organizationId,
+      body,
+    }: {
+      id: string;
+      organizationId: string;
+      body: UpdateBranchRequest;
+    }) => branchesApi.update(organizationId, body, { branchId: id }),
     onSuccess: async () => {
       setEditing(null);
       setForm(emptyForm);
@@ -128,6 +161,22 @@ function BranchesPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const reactivateMutation = useMutation({
+    mutationFn: () =>
+      branchesApi.update(
+        organizationId,
+        { status: "ACTIVE" },
+        { branchCode: form.branchCode.trim() },
+      ),
+    onSuccess: async () => {
+      setReactivateOpen(false);
+      setCreateOpen(false);
+      setForm(emptyForm);
+      toast.success("Branch updated successfully");
+      await queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -135,6 +184,7 @@ function BranchesPage() {
     if (editing)
       updateMutation.mutate({
         id: editing.id,
+        organizationId: editing.organizationId,
         body: {
           name: form.name.trim(),
           city: form.city.trim() || undefined,
@@ -411,6 +461,30 @@ function BranchesPage() {
         }}
         onConfirm={() => deactivateTarget && deactivateMutation.mutate(deactivateTarget.id)}
       />
+      <AlertDialog
+        open={reactivateOpen}
+        onOpenChange={(open) => {
+          if (!open && !reactivateMutation.isPending) setReactivateOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate branch?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This branch already exists but is inactive. Do you want to reactivate it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reactivateMutation.isPending}>No</AlertDialogCancel>
+            <Button
+              disabled={reactivateMutation.isPending}
+              onClick={() => reactivateMutation.mutate()}
+            >
+              {reactivateMutation.isPending ? "Reactivating..." : "Yes"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export function PageHeader({
     <div className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
       <div className="min-w-0">
         <h2 className="truncate text-2xl font-semibold tracking-tight">{title}</h2>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        {description && <p className="mt-1 text-sm text-muted-foreground">Reports From {description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div>}
     </div>

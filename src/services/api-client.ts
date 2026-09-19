@@ -18,13 +18,13 @@ type BackendEnvelope = {
   message?: unknown;
 };
 
-export class ApiRequestError extends Error {
-  status: number;
+export class ApiError<T = unknown> extends Error {
+  response: { status: number; data: T };
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data: T) {
     super(message);
-    this.name = "ApiRequestError";
-    this.status = status;
+    this.name = "ApiError";
+    this.response = { status, data };
   }
 }
 
@@ -243,15 +243,17 @@ async function apiRequest<T>(path: string, init?: RequestInit, canRefresh = true
 
   if (!response.ok) {
     let message = `API request failed with status ${response.status}`;
+    let payload: unknown;
 
     try {
-      const payload = (await response.clone().json()) as { message?: unknown };
-      if (typeof payload.message === "string") message = payload.message;
+      payload = await response.clone().json();
+      const envelope = payload as { message?: unknown };
+      if (typeof envelope.message === "string") message = envelope.message;
     } catch {
       // Keep the generic status message when the response is not JSON.
     }
 
-    throw new ApiRequestError(message, response.status);
+    throw new ApiError(message, response.status, payload);
   }
 
   if (response.status === 204) return undefined as T;

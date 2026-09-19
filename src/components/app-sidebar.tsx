@@ -43,6 +43,12 @@ const customerNav: NavItem[] = [
   { label: "My Orders", to: "/orders", icon: ShoppingCart },
   { label: "My Inventory", to: "/inventory", icon: Boxes },
   { label: "Stock Requests", to: "/stock-requests", icon: ClipboardList },
+  {
+    label: "Workflow Setup",
+    to: "/workflows",
+    icon: Workflow,
+    permission: "CUSTOMER_UPDATE",
+  },
   { label: "Notifications", to: "/notifications", icon: Bell },
   { label: "FAQ", to: "/faq", icon: HelpCircle },
   { label: "Profile", to: "/settings", icon: UserCircle },
@@ -89,7 +95,12 @@ const adminNav: NavItem[] = [
   },
   { label: "Users", to: "/users", icon: UserCircle, permission: "USER_VIEW" },
   { label: "Products", to: "/products", icon: Package, permission: "PRODUCT_VIEW" },
-  { label: "Workflow Setup", to: "/workflows", icon: Workflow },
+  {
+    label: "Workflow Setup",
+    to: "/workflows",
+    icon: Workflow,
+    anyPermission: ["CUSTOMER_VIEW", "CUSTOMER_UPDATE"],
+  },
   {
     label: "Roles & Permissions",
     to: "/roles",

@@ -7,6 +7,15 @@ import { toast } from "sonner";
 import { DeactivateDialog } from "@/components/deactivate-dialog";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission, isSuperAdmin } from "@/lib/permissions";
+import { ApiError } from "@/services/api-client";
 import {
   organizationsApi,
   type CreateOrganizationRequest,
@@ -37,6 +47,9 @@ type OrganizationForm = {
   email: string;
   phone: string;
   status: OrganizationResponse["status"];
+};
+type CreateOrganizationConflictResponse = {
+  data?: { canReactivate?: boolean | null };
 };
 const emptyForm: OrganizationForm = {
   organizationCode: "",
@@ -65,6 +78,7 @@ function OrganizationsPage() {
   const [form, setForm] = useState<OrganizationForm>(emptyForm);
   const [editing, setEditing] = useState<OrganizationResponse | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<OrganizationResponse | null>(null);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
 
   const organizationsQuery = useQuery({
     queryKey: [...queryKey, page, size],
@@ -88,7 +102,17 @@ function OrganizationsPage() {
       toast.success("Organization created successfully");
       await queryClient.invalidateQueries({ queryKey });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        (error as ApiError<CreateOrganizationConflictResponse>).response?.data?.data
+          ?.canReactivate === true
+      ) {
+        setReactivateOpen(true);
+        return;
+      }
+      toast.error(error.message);
+    },
   });
   const updateMutation = useMutation({
     mutationFn: async ({
@@ -125,6 +149,34 @@ function OrganizationsPage() {
     onSuccess: async () => {
       setDeactivateTarget(null);
       toast.success("Organization deactivated successfully");
+      await queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const reactivateMutation = useMutation({
+    mutationFn: async () => {
+      const organization = records.find(
+        (item) =>
+          item.status === "INACTIVE" &&
+          item.organizationCode.toLowerCase() === form.organizationCode.trim().toLowerCase(),
+      );
+      if (!organization) {
+        throw new Error("Inactive organization could not be found. Refresh and try again.");
+      }
+      const response = await organizationsApi.update(organization.id, {
+        name: form.name.trim(),
+        organizationType: form.organizationType,
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+      });
+      await organizationsApi.updateStatus(organization.id, "ACTIVE");
+      return response;
+    },
+    onSuccess: async () => {
+      setReactivateOpen(false);
+      setCreateOpen(false);
+      setForm(emptyForm);
+      toast.success("Organization updated successfully");
       await queryClient.invalidateQueries({ queryKey });
     },
     onError: (error) => toast.error(error.message),
@@ -407,6 +459,30 @@ function OrganizationsPage() {
         }}
         onConfirm={() => deactivateTarget && deactivateMutation.mutate(deactivateTarget.id)}
       />
+      <AlertDialog
+        open={reactivateOpen}
+        onOpenChange={(open) => {
+          if (!open && !reactivateMutation.isPending) setReactivateOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate organization?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This organization already exists but is inactive. Do you want to reactivate it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reactivateMutation.isPending}>No</AlertDialogCancel>
+            <Button
+              disabled={reactivateMutation.isPending}
+              onClick={() => reactivateMutation.mutate()}
+            >
+              {reactivateMutation.isPending ? "Reactivating..." : "Yes"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

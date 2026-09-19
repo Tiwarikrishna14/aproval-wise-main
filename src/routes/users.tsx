@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission, isBranchScopedUser, isSuperAdmin } from "@/lib/permissions";
+import { ApiError } from "@/services/api-client";
 import {
   branchRecords,
   branchesApi,
@@ -97,6 +98,9 @@ type UserForm = {
   phone: string;
   password: string;
   roleIds: string[];
+};
+type CreateUserConflictResponse = {
+  data?: { canReactivate?: boolean | null };
 };
 
 type EditUserForm = {
@@ -194,6 +198,7 @@ function UsersPage() {
   const [rolesDialogError, setRolesDialogError] = useState("");
   const [revokeRoleTarget, setRevokeRoleTarget] = useState<RevokeRoleTarget | null>(null);
   const [deleteTargetUser, setDeleteTargetUser] = useState<UserResponse | null>(null);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
@@ -430,6 +435,16 @@ function UsersPage() {
         refetchType: "none",
       });
     },
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        (error as ApiError<CreateUserConflictResponse>).response?.data?.data?.canReactivate === true
+      ) {
+        setReactivateOpen(true);
+        return;
+      }
+      toast.error(error.message);
+    },
   });
 
   const updateUser = useMutation({
@@ -444,6 +459,32 @@ function UsersPage() {
         refetchType: "none",
       });
     },
+  });
+  const reactivateUser = useMutation({
+    mutationFn: () => {
+      const inactiveUser = users.find(
+        (record) =>
+          record.status === "INACTIVE" &&
+          record.email.toLowerCase() === form.email.trim().toLowerCase(),
+      );
+      if (!inactiveUser) {
+        throw new Error("Inactive user could not be found. Refresh and try again.");
+      }
+      return usersApi.update(inactiveUser.id, {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || undefined,
+      });
+    },
+    onSuccess: async (response) => {
+      mergeUser(queryClient, usersQueryKey, response.data);
+      setReactivateOpen(false);
+      setIsCreateOpen(false);
+      setForm(createFormDefaults());
+      await queryClient.invalidateQueries({ queryKey: usersQueryOptions.queryKey });
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const assignRolesToUser = useMutation({
@@ -850,8 +891,8 @@ function UsersPage() {
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-sm">
+          <div className="overflow-x-auto overscroll-x-contain">
+            <table className="w-full min-w-[1100px] table-fixed text-sm">
               <colgroup>
                 {hasRoleViewAccess ? (
                   <>
@@ -1466,6 +1507,28 @@ function UsersPage() {
               onClick={confirmRevokeRole}
             >
               {revokeUserRole.isPending ? "Revoking..." : "Revoke Role"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={reactivateOpen}
+        onOpenChange={(open) => {
+          if (!open && !reactivateUser.isPending) setReactivateOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate user?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This user already exists but is inactive. Do you want to reactivate it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reactivateUser.isPending}>No</AlertDialogCancel>
+            <Button disabled={reactivateUser.isPending} onClick={() => reactivateUser.mutate()}>
+              {reactivateUser.isPending ? "Reactivating..." : "Yes"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

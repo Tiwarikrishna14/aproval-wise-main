@@ -1,7 +1,7 @@
-import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, CheckCircle2, Pencil, Send, Truck, Undo2, XCircle } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { DataError, EmptyState, TableMessageRow } from "@/components/data-state";
@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth-context";
 import { hasAnyPermission, hasPermission, isCustomerAccountUser } from "@/lib/permissions";
 import { useOrder, ordersQueryKeys } from "@/hooks/use-orders";
+import { usersApi, type ApproverUserResponse } from "@/services/admin-api.service";
 import {
   editableOrderStatuses,
   orderItems,
@@ -51,6 +52,12 @@ function OrderDetail() {
   const [supplierRemark, setSupplierRemark] = useState("");
   const [supplierError, setSupplierError] = useState("");
   const orderQuery = useOrder(id);
+  const approverUsersQuery = useQuery({
+    queryKey: ["orders", "detail", id, "approver-users", orderQuery.data?.businessCustomerId],
+    queryFn: async () => (await usersApi.approvers(orderQuery.data?.businessCustomerId ?? "")).data,
+    enabled: Boolean(orderQuery.data?.businessCustomerId),
+    retry: false,
+  });
 
   const updateOrder = useMutation({
     mutationFn: (body: OrderMutationRequest) => ordersApi.update(id, body),
@@ -102,6 +109,9 @@ function OrderDetail() {
   const status = order.status ?? "";
   const items = orderItems(order);
   const approvers = order.approvers ?? [];
+  const approverUsersById = new Map(
+    (approverUsersQuery.data ?? []).map((approver) => [approver.userId, approver]),
+  );
   const canEdit =
     editableOrderStatuses.includes(status) &&
     (isCustomerAccountUser(user) || hasPermission(user, "ORDER_UPDATE"));
@@ -233,7 +243,7 @@ function OrderDetail() {
             </TabsContent>
 
             <TabsContent value="approvers" className="p-0">
-              <ApproversTable approvers={approvers} />
+              <ApproversTable approvers={approvers} approverUsersById={approverUsersById} />
             </TabsContent>
           </Tabs>
         </div>
@@ -417,7 +427,22 @@ function ProductsTable({ items }: { items: OrderItemResponse[] }) {
   );
 }
 
-function ApproversTable({ approvers }: { approvers: OrderApproverResponse[] }) {
+function ApproversTable({
+  approvers,
+  approverUsersById,
+}: {
+  approvers: OrderApproverResponse[];
+  approverUsersById: Map<string, ApproverUserResponse>;
+}) {
+  const approversByLevel = approvers.reduce<Record<number, OrderApproverResponse[]>>(
+    (result, approver) => {
+      const level = approver.approvalLevel ?? 1;
+      result[level] = [...(result[level] ?? []), approver];
+      return result;
+    },
+    {},
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -431,32 +456,63 @@ function ApproversTable({ approvers }: { approvers: OrderApproverResponse[] }) {
         </thead>
         <tbody>
           {approvers.length === 0 ? (
-            <TableMessageRow columns={4} message="No approvers returned  ." />
+            <TableMessageRow columns={4} message="No approvers returned." />
           ) : (
-            approvers.map((approver, index) => (
-              <tr key={approver.id ?? approver.userId ?? index} className="border-t border-border">
-                <td className="px-5 py-3">
-                  <div className="font-medium">
-                    {approver.approverName || approver.name || approver.email || "-"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {approver.email || approver.userId || approver.approverId || ""}
-                  </div>
-                </td>
-                <td className="px-5 py-3">
-                  {approver.status ? <StatusBadge status={formatStatus(approver.status)} /> : "-"}
-                </td>
-                <td className="px-5 py-3 text-muted-foreground">{approver.remark || "-"}</td>
-                <td className="px-5 py-3 text-muted-foreground">
-                  {formatDateTime(approver.actedAt)}
-                </td>
-              </tr>
-            ))
+            Object.entries(approversByLevel)
+              .sort(([left], [right]) => Number(left) - Number(right))
+              .map(([level, levelApprovers]) => (
+                <Fragment key={level}>
+                  <tr className="border-t border-border bg-surface/70">
+                    <td colSpan={4} className="px-5 py-2 text-xs font-semibold uppercase">
+                      Level {level} · {levelApprovers.filter(isApprovedApprover).length}/
+                      {levelApprovers.length} approved
+                    </td>
+                  </tr>
+                  {levelApprovers.map((approver, index) => {
+                    const approverId = approver.userId || approver.approverId || approver.id || "";
+                    const resolvedApprover = approverUsersById.get(approverId);
+                    const approverName =
+                      approver.approverName ||
+                      approver.name ||
+                      resolvedApprover?.name ||
+                      approver.email;
+                    const approverEmail = approver.email || resolvedApprover?.email;
+                    const status = approver.approvalStatus || approver.status;
+
+                    return (
+                      <tr
+                        key={approver.id ?? approver.userId ?? index}
+                        className="border-t border-border"
+                      >
+                        <td className="px-5 py-3">
+                          <div className="font-medium">{approverName || "Unknown approver"}</div>
+                          {approverEmail && approverEmail !== approverName ? (
+                            <div className="text-xs text-muted-foreground">{approverEmail}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-5 py-3">
+                          {status ? <StatusBadge status={formatStatus(status)} /> : "-"}
+                        </td>
+                        <td className="px-5 py-3 text-muted-foreground">
+                          {approver.remark || "-"}
+                        </td>
+                        <td className="px-5 py-3 text-muted-foreground">
+                          {formatDateTime(approver.actedAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))
           )}
         </tbody>
       </table>
     </div>
   );
+}
+
+function isApprovedApprover(approver: OrderApproverResponse) {
+  return (approver.approvalStatus || approver.status) === "APPROVED";
 }
 
 function supplierActionsForStatus(status: string): SupplierActionRequest["action"][] {

@@ -1,13 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+import { ApprovalPolicyForm } from "@/components/approval-policy-form";
 import { DataError, EmptyState } from "@/components/data-state";
 import { PageHeader } from "@/components/page-parts";
-import { StatusBadge } from "@/components/status-badge";
-import { Button } from "@/components/ui/button";
-import { useWorkflows } from "@/hooks/use-domain-data";
-import type { Workflow, WorkflowStep } from "@/lib/domain-types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/lib/auth-context";
+import {
+  hasAnyPermission,
+  hasPermission,
+  isOrganizationAdminUser,
+  isSuperAdmin,
+} from "@/lib/permissions";
+import { businessCustomersApi, type BusinessCustomerResponse } from "@/services/admin-api.service";
 
 export const Route = createFileRoute("/workflows")({
   head: () => ({ meta: [{ title: "Approval Workflows - Akribiz B2B" }] }),
@@ -15,136 +22,114 @@ export const Route = createFileRoute("/workflows")({
 });
 
 function WorkflowsPage() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: workflows = [], isLoading, isError, error } = useWorkflows();
-  const selectedWorkflow =
-    workflows.find((workflow) => workflow.id === selectedId) ?? workflows[0] ?? null;
-  const steps = getWorkflowSteps(selectedWorkflow);
+  const { user } = useAuth();
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const roles = (user?.roles ?? []).map((role) => role.toUpperCase());
+  const customerAdmin = roles.includes("CUSTOMER_ADMIN");
+  const organizationAdmin = isOrganizationAdminUser(user);
+  const administrator = isSuperAdmin(user) || organizationAdmin || customerAdmin;
+  const ownCustomerId = customerAdmin ? (user?.businessCustomerId ?? "") : "";
+  const canView = administrator && hasAnyPermission(user, ["CUSTOMER_VIEW", "CUSTOMER_UPDATE"]);
+  const canEdit = administrator && hasPermission(user, "CUSTOMER_UPDATE");
+  const customersQuery = useQuery({
+    queryKey: ["admin", "approval-workflows", "customers", user?.organizationId],
+    queryFn: async () =>
+      (
+        await businessCustomersApi.list({
+          organizationId: isSuperAdmin(user) ? undefined : user?.organizationId,
+          size: 100,
+          status: "ACTIVE",
+        })
+      ).data,
+    enabled: canView && !customerAdmin,
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const customers: BusinessCustomerResponse[] = Array.isArray(customersQuery.data)
+    ? customersQuery.data
+    : (customersQuery.data?.content ?? []);
+  const activeCustomerId = ownCustomerId || selectedCustomerId;
+
+  if (!canView) {
+    return (
+      <DataError message="Approval workflow access is limited to Super Admin, Organization Admin, and Customer Admin users." />
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
+    <div className="mx-auto max-w-[1200px] space-y-6">
       <PageHeader
-        title="Approval Workflows"
-        description="Configure multi-step approval flows per module and customer."
-        actions={
-          <Button disabled>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New Workflow
-          </Button>
-        }
+        title="Workflow Setup"
+        description="Configure customer-specific order approval policies and approval levels."
       />
 
-      {isError ? (
-        <DataError message={`Failed to load workflows: ${error.message}`} />
-      ) : isLoading ? (
-        <EmptyState message="Loading workflows from backend..." />
-      ) : workflows.length === 0 ? (
-        <EmptyState message="No workflows returned  ." />
-      ) : (
-        <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+      <Tabs defaultValue="approval-workflow">
+        <TabsList>
+          <TabsTrigger value="approval-workflow">Approval Workflow</TabsTrigger>
+        </TabsList>
+        <TabsContent value="approval-workflow" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
-            <div className="border-b border-border px-5 py-3 text-sm font-semibold">Workflows</div>
-            <ul className="divide-y divide-border">
-              {workflows.map((workflow) => (
-                <li
-                  key={workflow.id ?? workflow.name}
-                  className={`cursor-pointer p-4 ${
-                    selectedWorkflow?.id === workflow.id ? "bg-primary/5" : "hover:bg-surface/50"
-                  }`}
-                  onClick={() => setSelectedId(workflow.id ?? null)}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-semibold">{workflow.name}</div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {[workflow.module, workflow.customer, formatStepCount(workflow.steps)]
-                          .filter(Boolean)
-                          .join(" - ")}
-                      </div>
-                    </div>
-                    {workflow.status && <StatusBadge status={workflow.status} />}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="rounded-xl border border-border bg-card">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-              <div>
-                <div className="text-[15px] font-semibold">{selectedWorkflow?.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {[selectedWorkflow?.module, selectedWorkflow?.customer, selectedWorkflow?.updated]
-                    .filter(Boolean)
-                    .join(" - ")}
+            <div className="border-b border-border p-5">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="font-semibold">Business Customer Approval Policy</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure sequential or parallel approval levels for order creation.
+                  </p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  Add Condition
-                </Button>
-                <Button size="sm" disabled>
-                  Activate Workflow
-                </Button>
-              </div>
             </div>
-            <ol className="p-6 space-y-3">
-              {steps.length === 0 ? (
-                <li className="text-sm text-muted-foreground">
-                  No workflow steps returned  .
-                </li>
+            <div className="space-y-5 p-5">
+              {customerAdmin ? (
+                <div className="rounded-md border bg-surface/40 p-3">
+                  <div className="text-xs text-muted-foreground">Business Customer</div>
+                  <div className="font-medium">
+                    {user?.businessCustomerName ||
+                      user?.businessCustomerCode ||
+                      "Your customer account"}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Customer administrators can update only their own approval policy.
+                  </p>
+                </div>
+              ) : customersQuery.isError ? (
+                <DataError message={customersQuery.error.message} />
               ) : (
-                steps.map((step, index) => (
-                  <li
-                    key={`${step.name}-${index}`}
-                    className="rounded-lg border border-border bg-surface/40 p-4"
+                <div className="max-w-xl space-y-2">
+                  <label htmlFor="workflow-customer" className="text-sm font-medium">
+                    Business Customer
+                  </label>
+                  <select
+                    id="workflow-customer"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={selectedCustomerId}
+                    onChange={(event) => setSelectedCustomerId(event.target.value)}
+                    disabled={customersQuery.isLoading}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <GripVertical className="mt-1 h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            Step {step.n ?? index + 1}
-                          </div>
-                          <div className="text-sm font-semibold">{step.name}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {[step.role, step.type, step.sla ? `SLA ${step.sla}` : undefined]
-                              .filter(Boolean)
-                              .join(" - ")}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" disabled>
-                          Edit
-                        </Button>
-                        <Button size="icon" variant="ghost" disabled>
-                          <Trash2 className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </div>
-                    </div>
-                  </li>
-                ))
+                    <option value="">
+                      {customersQuery.isLoading ? "Loading customers..." : "Select a customer"}
+                    </option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.customerCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-              <Button variant="outline" className="w-full" disabled>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Add Step
-              </Button>
-            </ol>
+
+              {activeCustomerId ? (
+                <ApprovalPolicyForm customerId={activeCustomerId} canEdit={canEdit} />
+              ) : customerAdmin ? (
+                <DataError message="Your login is not mapped to a business customer." />
+              ) : (
+                <EmptyState message="Select a business customer to configure its approval policy." />
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
-
-function getWorkflowSteps(workflow: Workflow | null): WorkflowStep[] {
-  if (!workflow || !Array.isArray(workflow.steps)) return [];
-  return workflow.steps;
-}
-
-function formatStepCount(steps: Workflow["steps"]) {
-  if (Array.isArray(steps)) return `${steps.length} steps`;
-  if (typeof steps === "number") return `${steps} steps`;
-  return undefined;
 }

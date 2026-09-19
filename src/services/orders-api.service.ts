@@ -44,8 +44,15 @@ export type OrderApproverResponse = {
   name?: string;
   email?: string;
   status?: string;
+  approvalStatus?: string;
+  approvalLevel?: number;
   remark?: string;
   actedAt?: string;
+};
+
+export type OrderApproverAssignment = {
+  userId: string;
+  approvalLevel: number;
 };
 
 export type OrderResponse = {
@@ -94,7 +101,8 @@ export type OrderMutationRequest = {
   locationCode?: string;
   referenceNumber?: string;
   products: OrderProductRequest[];
-  approverIds: string[];
+  approverIds?: string[];
+  approvers: OrderApproverAssignment[];
 };
 
 export type OrderListQuery = PageableQuery & {

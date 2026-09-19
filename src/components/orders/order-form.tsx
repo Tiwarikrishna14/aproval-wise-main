@@ -25,10 +25,12 @@ import {
   usersApi,
   type ApproverUserResponse,
   type BusinessCustomerResponse,
+  type OrderApprovalPolicy,
   type ProductResponse,
 } from "@/services/admin-api.service";
 import {
   orderItems,
+  type OrderApproverAssignment,
   type OrderApproverResponse,
   type OrderMutationRequest,
   type OrderResponse,
@@ -72,10 +74,14 @@ function initialProductRows(order?: OrderResponse | null): ProductRow[] {
     .filter((item) => Number.isFinite(item.productId) && item.productId > 0);
 }
 
-function initialApproverIds(order?: OrderResponse | null) {
-  return (order?.approvers ?? [])
-    .map((approver) => approver.userId || approver.approverId || approver.id || "")
-    .filter(Boolean);
+function initialApproversByLevel(order?: OrderResponse | null) {
+  return (order?.approvers ?? []).reduce<Record<number, string[]>>((result, approver) => {
+    const userId = approver.userId || approver.approverId || approver.id || "";
+    if (!userId) return result;
+    const level = approver.approvalLevel ?? 1;
+    result[level] = [...(result[level] ?? []), userId];
+    return result;
+  }, {});
 }
 
 function approverFromOrder(approver: OrderApproverResponse): ApproverUserResponse | null {
@@ -105,6 +111,29 @@ function productLabel(product: ProductResponse) {
 function formatMoney(value: number) {
   if (!Number.isFinite(value)) return "INR 0";
   return `INR ${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function validateApprovers(
+  policy: OrderApprovalPolicy | null,
+  assignments: OrderApproverAssignment[],
+) {
+  if (!policy) return ["An approval policy is required before saving the order."];
+  const errors: string[] = [];
+  policy.levels.forEach((level) => {
+    const assignedCount = assignments.filter(
+      (assignment) => assignment.approvalLevel === level.levelNumber,
+    ).length;
+    if (assignedCount < level.minimumApprovers) {
+      errors.push(
+        `Level ${level.levelNumber} requires at least ${level.minimumApprovers} approver(s).`,
+      );
+    }
+  });
+  const userIds = assignments.map((assignment) => assignment.userId);
+  if (new Set(userIds).size !== userIds.length) {
+    errors.push("The same user cannot be assigned more than once.");
+  }
+  return errors;
 }
 
 export function OrderForm({
@@ -138,8 +167,12 @@ export function OrderForm({
     initialProductRows(initialOrder),
   );
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [approverIds, setApproverIds] = useState<string[]>(() => initialApproverIds(initialOrder));
-  const [selectedApproverId, setSelectedApproverId] = useState("");
+  const [approversByLevel, setApproversByLevel] = useState<Record<number, string[]>>(() =>
+    initialApproversByLevel(initialOrder),
+  );
+  const [selectedApproverByLevel, setSelectedApproverByLevel] = useState<Record<number, string>>(
+    {},
+  );
   const [selectedLocationId, setSelectedLocationId] = useState(
     initialOrder?.businessCustomerLocationId || initialOrder?.locationDetails?.id || "",
   );
@@ -254,6 +287,14 @@ export function OrderForm({
     retry: false,
     staleTime: 60 * 1000,
   });
+  const approvalPolicyQuery = useQuery({
+    queryKey: ["approval-policy", approverBusinessCustomerId],
+    queryFn: async () =>
+      (await businessCustomersApi.getApprovalPolicy(approverBusinessCustomerId ?? "")).data,
+    enabled: Boolean(approverBusinessCustomerId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const locationsQuery = useQuery({
     queryKey: ["orders", "form", "locations", approverBusinessCustomerId, customerSellCode],
@@ -295,9 +336,8 @@ export function OrderForm({
     (product) => !productRows.some((row) => row.productId === product.id),
   );
   const allProductsSelected = products.length > 0 && availableProducts.length === 0;
-  const availableApprovers = eligibleApprovers.filter(
-    (approver) => !approverIds.includes(approver.userId),
-  );
+  const approvalPolicy = approvalPolicyQuery.data ?? null;
+  const approvalLevels = approvalPolicy?.levels ?? [];
   const totalAmount = productRows.reduce(
     (sum, row) => sum + Number(row.quantity || 0) * Number(row.unitPrice || 0),
     0,
@@ -346,10 +386,15 @@ export function OrderForm({
     );
   }
 
-  function addApprover() {
-    if (!selectedApproverId || approverIds.includes(selectedApproverId)) return;
-    setApproverIds((current) => [...current, selectedApproverId]);
-    setSelectedApproverId("");
+  function addApprover(levelNumber: number) {
+    const userId = selectedApproverByLevel[levelNumber];
+    const assignedUserIds = Object.values(approversByLevel).flat();
+    if (!userId || assignedUserIds.includes(userId)) return;
+    setApproversByLevel((current) => ({
+      ...current,
+      [levelNumber]: [...(current[levelNumber] ?? []), userId],
+    }));
+    setSelectedApproverByLevel((current) => ({ ...current, [levelNumber]: "" }));
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -371,6 +416,18 @@ export function OrderForm({
       return;
     }
 
+    const approvers = approvalLevels.flatMap((level) =>
+      (approversByLevel[level.levelNumber] ?? []).map((userId) => ({
+        userId,
+        approvalLevel: level.levelNumber,
+      })),
+    );
+    // const approverErrors = validateApprovers(approvalPolicy, approvers);
+    // if (approverErrors.length) {
+    //   setFormError(approverErrors.join(" "));
+    //   return;
+    // }
+
     onSubmit({
       notes: form.notes.trim(),
       remarks: form.remarks.trim(),
@@ -384,7 +441,7 @@ export function OrderForm({
         unitPrice: row.unitPrice,
         remark: row.remark.trim(),
       })),
-      approverIds,
+      approvers,
     });
   }
 
@@ -617,72 +674,115 @@ export function OrderForm({
         </div>
       </section>
 
-      <section className="rounded-lg border border-border p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-2">
-            <Label htmlFor="order-approver">Approvers</Label>
-            <select
-              id="order-approver"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={selectedApproverId}
-              onChange={(event) => setSelectedApproverId(event.target.value)}
-              disabled={approversQuery.isLoading || !availableApprovers.length}
-            >
-              <option value="">
-                {!approverBusinessCustomerId
-                  ? "Select customer first"
-                  : approversQuery.isLoading
-                    ? "Loading approvers..."
-                    : availableApprovers.length
-                      ? "Select eligible approver"
-                      : "No eligible approvers returned"}
-              </option>
-              {availableApprovers.map((approver) => (
-                <option key={approver.userId} value={approver.userId}>
-                  {approverLabel(approver)}
-                  {approver.email ? ` (${approver.email})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={addApprover}
-            disabled={!selectedApproverId}
-          >
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add Approver
-          </Button>
+      <section className="space-y-4 rounded-lg border border-border p-4">
+        <div>
+          <div className="font-medium">Approval Workflow</div>
+          <p className="text-xs text-muted-foreground">
+            {approvalPolicy?.approvalMode === "PARALLEL"
+              ? "All approval levels can act independently."
+              : "Approval levels are completed sequentially."}
+          </p>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {approverIds.length ? (
-            approverIds.map((id) => {
-              const approver = approversById.get(id);
-              return (
-                <span
-                  key={id}
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs"
-                >
-                  {approver ? approverLabel(approver) : id}
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground"
-                    onClick={() =>
-                      setApproverIds((current) => current.filter((approverId) => approverId !== id))
+        {!approverBusinessCustomerId ? (
+          <p className="text-sm text-muted-foreground">Select a customer first.</p>
+        ) : approvalPolicyQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading approval policy...</p>
+        ) : approvalPolicyQuery.isError || !approvalLevels.length ? (
+          <p className="text-sm text-destructive">
+            No approval policy is configured for this customer.
+          </p>
+        ) : (
+          approvalLevels.map((level) => {
+            const assignedIds = approversByLevel[level.levelNumber] ?? [];
+            const allAssignedIds = Object.values(approversByLevel).flat();
+            const availableApprovers = eligibleApprovers.filter((approver) => {
+              if (allAssignedIds.includes(approver.userId)) return false;
+              if (!approvalPolicy?.selfApprovalAllowed && approver.userId === user?.id)
+                return false;
+              if (!level.eligibleRoles?.length) return true;
+              return (approver.roles ?? []).some((role) => level.eligibleRoles?.includes(role));
+            });
+            return (
+              <div key={level.levelNumber} className="rounded-md border p-4">
+                <div className="mb-3">
+                  <div className="font-medium">Level {level.levelNumber}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Minimum required: {level.minimumApprovers} · Completion: {level.completionRule}{" "}
+                    · Roles:{" "}
+                    {level.eligibleRoles?.length ? level.eligibleRoles.join(", ") : "Any approver"}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <select
+                    className="h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                    value={selectedApproverByLevel[level.levelNumber] ?? ""}
+                    onChange={(event) =>
+                      setSelectedApproverByLevel((current) => ({
+                        ...current,
+                        [level.levelNumber]: event.target.value,
+                      }))
                     }
+                    disabled={approversQuery.isLoading || !availableApprovers.length}
+                    aria-label={`Level ${level.levelNumber} approver`}
                   >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </span>
-              );
-            })
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Saving without approvers will keep the order as draft.
-            </p>
-          )}
-        </div>
+                    <option value="">
+                      {approversQuery.isLoading
+                        ? "Loading approvers..."
+                        : availableApprovers.length
+                          ? "Select eligible approver"
+                          : "No eligible approvers available"}
+                    </option>
+                    {availableApprovers.map((approver) => (
+                      <option key={approver.userId} value={approver.userId}>
+                        {approverLabel(approver)}
+                        {approver.email ? ` (${approver.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!selectedApproverByLevel[level.levelNumber]}
+                    onClick={() => addApprover(level.levelNumber)}
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" /> Add
+                  </Button>
+                </div>
+                {!approvalPolicy?.selfApprovalAllowed ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Order creator cannot approve their own order.
+                  </p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {assignedIds.map((assignedId) => {
+                    const approver = approversById.get(assignedId);
+                    return (
+                      <span
+                        key={assignedId}
+                        className="inline-flex items-center gap-2 rounded-full border bg-surface px-3 py-1 text-xs"
+                      >
+                        {approver ? approverLabel(approver) : "Assigned approver"}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setApproversByLevel((current) => ({
+                              ...current,
+                              [level.levelNumber]: (current[level.levelNumber] ?? []).filter(
+                                (id) => id !== assignedId,
+                              ),
+                            }))
+                          }
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
       </section>
 
       {formError || error ? (

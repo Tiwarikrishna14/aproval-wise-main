@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { MapPin, Pencil, Plus, Power, Search, X } from "lucide-react";
+import { ArrowRightLeft, MapPin, Pencil, Plus, Power, Search, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,15 @@ import { DeactivateDialog } from "@/components/deactivate-dialog";
 import { BusinessCustomerLocationsDialog } from "@/components/business-customer-locations-dialog";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,8 +34,10 @@ import {
   hasPermission,
   isBranchScopedUser,
   isCustomerAccountUser,
+  isOrganizationAdminUser,
   isSuperAdmin,
 } from "@/lib/permissions";
+import { ApiError } from "@/services/api-client";
 import {
   branchRecords,
   branchesApi,
@@ -35,6 +46,7 @@ import {
   type BusinessCustomerResponse,
   type CreateBusinessCustomerRequest,
   type PageResponse,
+  type TransferBusinessCustomerRequest,
   type UpdateBusinessCustomerRequest,
 } from "@/services/admin-api.service";
 
@@ -47,6 +59,9 @@ type CustomerForm = {
   pincode: string;
   email: string;
   phone: string;
+};
+type CreateCustomerConflictResponse = {
+  data?: { canReactivate?: boolean | null };
 };
 
 type EditCustomerForm = Omit<CustomerForm, "customerCode"> & {
@@ -102,6 +117,7 @@ function CustomersPage() {
   const canCreate = !isCustomerAccount && hasPermission(user, "CUSTOMER_CREATE");
   const canUpdate = !isCustomerAccount && hasPermission(user, "CUSTOMER_UPDATE");
   const isSa = isSuperAdmin(user);
+  const canTransfer = canUpdate && (isSa || isOrganizationAdminUser(user));
   const branchScopedUser = isBranchScopedUser(user);
   const [organizationId, setOrganizationId] = useState(isSa ? "" : (user?.organizationId ?? ""));
   const [branchId, setBranchId] = useState(branchScopedUser ? (user?.branchId ?? "") : "");
@@ -119,6 +135,9 @@ function CustomersPage() {
   const [editForm, setEditForm] = useState<EditCustomerForm>(emptyEditForm);
   const [deleteTarget, setDeleteTarget] = useState<BusinessCustomerResponse | null>(null);
   const [locationsCustomer, setLocationsCustomer] = useState<BusinessCustomerResponse | null>(null);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<BusinessCustomerResponse | null>(null);
+  const [targetBranchId, setTargetBranchId] = useState("");
 
   useEffect(() => {
     const pincode = form.pincode.replace(/\D/g, "");
@@ -228,6 +247,20 @@ function CustomersPage() {
     retry: false,
     staleTime: 60 * 1000,
   });
+  const transferBranchesQuery = useQuery({
+    queryKey: ["admin", "business-customers", "transfer-branches", transferTarget?.organizationId],
+    queryFn: async () =>
+      branchRecords(
+        (
+          await branchesApi.list({
+            organizationId: transferTarget?.organizationId,
+            size: 100,
+          })
+        ).data,
+      ),
+    enabled: Boolean(transferTarget?.organizationId),
+    retry: false,
+  });
 
   const branches = branchRecords(branchesQuery.data);
   const organizations = (organizationsQuery.data ?? []).filter(
@@ -286,7 +319,17 @@ function CustomersPage() {
       toast.success("Business customer created successfully");
       await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        (error as ApiError<CreateCustomerConflictResponse>).response?.data?.data?.canReactivate ===
+          true
+      ) {
+        setReactivateOpen(true);
+        return;
+      }
+      toast.error(error.message);
+    },
   });
 
   const updateCustomer = useMutation({
@@ -313,6 +356,47 @@ function CustomersPage() {
     onSuccess: async () => {
       setDeleteTarget(null);
       toast.success("Business customer deactivated successfully");
+      await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const reactivateCustomer = useMutation({
+    mutationFn: () => {
+      const customer = customers.find(
+        (item) =>
+          item.status === "INACTIVE" &&
+          item.customerCode.toLowerCase() === form.customerCode.trim().toLowerCase(),
+      );
+      if (!customer) {
+        throw new Error("Inactive business customer could not be found. Refresh and try again.");
+      }
+      return businessCustomersApi.update(customer.id, {
+        name: form.name.trim(),
+        city: form.city.trim() || undefined,
+        state: form.state.trim() || undefined,
+        address: form.address.trim() || undefined,
+        pincode: form.pincode.trim() || undefined,
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        status: "ACTIVE",
+      });
+    },
+    onSuccess: async () => {
+      setReactivateOpen(false);
+      setIsCreateOpen(false);
+      setForm(emptyForm);
+      toast.success("Business customer updated successfully");
+      await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const transferCustomer = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: TransferBusinessCustomerRequest }) =>
+      businessCustomersApi.transferBranch(id, body),
+    onSuccess: async () => {
+      setTransferTarget(null);
+      setTargetBranchId("");
+      toast.success("Business customer transferred successfully");
       await queryClient.invalidateQueries({ queryKey: ["admin", "business-customers"] });
     },
     onError: (error) => toast.error(error.message),
@@ -381,6 +465,13 @@ function CustomersPage() {
   function closeDeleteDialog(open: boolean) {
     if (open || deactivateCustomer.isPending) return;
     setDeleteTarget(null);
+  }
+
+  function closeTransferDialog(open: boolean) {
+    if (open || transferCustomer.isPending) return;
+    setTransferTarget(null);
+    setTargetBranchId("");
+    transferCustomer.reset();
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -532,8 +623,8 @@ function CustomersPage() {
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-sm">
+          <div className="overflow-x-auto overscroll-x-contain">
+            <table className="w-full min-w-[1400px] table-fixed text-sm">
               <colgroup>
                 <col className={canUpdate ? "w-[13%]" : "w-[15%]"} />
                 <col className={canUpdate ? "w-[9%]" : "w-[10%]"} />
@@ -543,7 +634,7 @@ function CustomersPage() {
                 <col className={canUpdate ? "w-[10%]" : "w-[11%]"} />
                 <col className={canUpdate ? "w-[8%]" : "w-[7%]"} />
                 <col className={canUpdate ? "w-[8%]" : "w-[5%]"} />
-                {canUpdate ? <col className="w-[8%]" /> : null}
+                {canUpdate ? <col className="w-[14%]" /> : null}
               </colgroup>
               <thead className="bg-surface text-[11px] uppercase tracking-normal text-muted-foreground">
                 <tr>
@@ -637,6 +728,20 @@ function CustomersPage() {
                               <Pencil className="mr-1.5 h-3.5 w-3.5" />
                               Edit
                             </Button>
+                            {canTransfer && customer.status === "ACTIVE" ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setTransferTarget(customer);
+                                  setTargetBranchId("");
+                                }}
+                              >
+                                <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
+                                Transfer
+                              </Button>
+                            ) : null}
                             {customer.status === "ACTIVE" ? (
                               <Button
                                 type="button"
@@ -790,7 +895,7 @@ function CustomersPage() {
       </Dialog>
 
       <Dialog open={Boolean(editingCustomer)} onOpenChange={closeEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Business Customer</DialogTitle>
             <DialogDescription>
@@ -838,6 +943,67 @@ function CustomersPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(transferTarget)} onOpenChange={closeTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer business customer</DialogTitle>
+            <DialogDescription>
+              Move {transferTarget?.name || "this customer"} and its locations and users to another
+              active branch. Existing orders will keep their current branch.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Target Branch" id="transfer-target-branch">
+            <select
+              id="transfer-target-branch"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={targetBranchId}
+              onChange={(event) => setTargetBranchId(event.target.value)}
+              disabled={transferBranchesQuery.isLoading || transferCustomer.isPending}
+            >
+              <option value="">Select an active branch</option>
+              {(transferBranchesQuery.data ?? [])
+                .filter(
+                  (branch) => branch.status === "ACTIVE" && branch.id !== transferTarget?.branchId,
+                )
+                .map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.branchCode})
+                  </option>
+                ))}
+            </select>
+          </Field>
+          {transferBranchesQuery.isError ? (
+            <InlineError message="Could not load target branches." />
+          ) : null}
+          {transferCustomer.isError ? (
+            <InlineError message={transferCustomer.error.message} />
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={transferCustomer.isPending}
+              onClick={() => closeTransferDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!targetBranchId || transferCustomer.isPending || !transferTarget}
+              onClick={() =>
+                transferTarget &&
+                transferCustomer.mutate({
+                  id: transferTarget.id,
+                  body: { targetBranchId },
+                })
+              }
+            >
+              {transferCustomer.isPending ? "Transferring..." : "Transfer Customer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <DeactivateDialog
         open={Boolean(deleteTarget)}
         entityName={deleteTarget?.name || "business customer"}
@@ -848,6 +1014,30 @@ function CustomersPage() {
         onOpenChange={closeDeleteDialog}
         onConfirm={confirmDelete}
       />
+      <AlertDialog
+        open={reactivateOpen}
+        onOpenChange={(open) => {
+          if (!open && !reactivateCustomer.isPending) setReactivateOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate business customer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This business customer already exists but is inactive. Do you want to reactivate it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reactivateCustomer.isPending}>No</AlertDialogCancel>
+            <Button
+              disabled={reactivateCustomer.isPending}
+              onClick={() => reactivateCustomer.mutate()}
+            >
+              {reactivateCustomer.isPending ? "Reactivating..." : "Yes"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <BusinessCustomerLocationsDialog
         customer={locationsCustomer}
         canCreate={canCreate}

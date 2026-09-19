@@ -132,6 +132,7 @@ export type ApproverUserResponse = {
   userId: string;
   name: string;
   email?: string;
+  roles?: string[];
 };
 
 export type RoleResponse = {
@@ -295,6 +296,8 @@ export type UpdateBranchRequest = Omit<CreateBranchRequest, "branchCode"> & {
   status: BranchResponse["status"];
 };
 
+export type ReactivateBranchRequest = Pick<UpdateBranchRequest, "status">;
+
 export const branchesApi = {
   list: (query?: PageableQuery & { organizationId?: string }) => {
     const params = new URLSearchParams(buildSearchParams(query));
@@ -309,8 +312,20 @@ export const branchesApi = {
       `/api/branches?organizationId=${encodeURIComponent(organizationId)}`,
       body,
     ),
-  update: (id: string, body: UpdateBranchRequest) =>
-    apiPut<ApiEnvelope<BranchResponse>>(`/api/branches/${id}`, body),
+  update: (
+    organizationId: string,
+    body: UpdateBranchRequest | ReactivateBranchRequest,
+    identifier: { branchId?: string; branchCode?: string },
+  ) => {
+    const params = new URLSearchParams();
+    if (identifier.branchId) params.set("branchId", identifier.branchId);
+    if (identifier.branchCode) params.set("branchCode", identifier.branchCode);
+    const query = params.toString();
+    return apiPut<ApiEnvelope<void>>(
+      `/api/branches/${encodeURIComponent(organizationId)}${query ? `?${query}` : ""}`,
+      body,
+    );
+  },
   deleteValidation: (id: string) =>
     apiGet<ApiEnvelope<DeleteValidationResponse>>(`/api/branches/${id}/delete-validation`),
   deactivate: (id: string, force = true) =>
@@ -348,6 +363,26 @@ export type CreateBusinessCustomerRequest = {
 export type UpdateBusinessCustomerRequest = Omit<CreateBusinessCustomerRequest, "customerCode"> & {
   status?: BusinessCustomerResponse["status"];
 };
+
+export type TransferBusinessCustomerRequest = {
+  targetBranchId: string;
+};
+
+export type ApprovalMode = "SEQUENTIAL" | "PARALLEL";
+export type ApprovalCompletionRule = "ANY" | "ALL";
+
+export interface ApprovalLevelPolicy {
+  levelNumber: number;
+  minimumApprovers: number;
+  completionRule: ApprovalCompletionRule;
+  eligibleRoles: string[] | null;
+}
+
+export interface OrderApprovalPolicy {
+  approvalMode: ApprovalMode;
+  selfApprovalAllowed: boolean;
+  levels: ApprovalLevelPolicy[];
+}
 
 export type BusinessCustomerLocationResponse = {
   id: string;
@@ -451,6 +486,12 @@ export const businessCustomersApi = {
     ),
   update: (id: string, body: UpdateBusinessCustomerRequest) =>
     apiPut<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}`, body),
+  transferBranch: (id: string, body: TransferBusinessCustomerRequest) =>
+    apiPatch<ApiEnvelope<BusinessCustomerResponse>>(`/api/business-customers/${id}/branch`, body),
+  getApprovalPolicy: (id: string) =>
+    apiGet<ApiEnvelope<OrderApprovalPolicy>>(`/api/business-customers/${id}/approval-policy`),
+  updateApprovalPolicy: (id: string, body: OrderApprovalPolicy) =>
+    apiPut<ApiEnvelope<OrderApprovalPolicy>>(`/api/business-customers/${id}/approval-policy`, body),
   deleteValidation: (id: string) =>
     apiGet<ApiEnvelope<DeleteValidationResponse>>(
       `/api/business-customers/${id}/delete-validation`,
