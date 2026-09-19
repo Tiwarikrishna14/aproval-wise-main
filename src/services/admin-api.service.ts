@@ -25,6 +25,19 @@ export type PageResponse<T> = {
   last: boolean;
 };
 
+export type BulkUploadStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export type BulkUploadJob = {
+  jobId: string;
+  status: BulkUploadStatus;
+  totalProducts: number;
+  processedProducts: number;
+  failedProducts: number;
+  progressPercent: number;
+  estimatedSecondsRemaining: number | null;
+  message: string;
+};
+
 export type DeleteValidationResponse = {
   hasWarnings: boolean;
   message: string;
@@ -523,8 +536,10 @@ export const productsApi = {
   bulkDelete: (ids: number[]) =>
     apiPost<ApiEnvelope<unknown>, { ids: number[] }>("/api/products/bulk-delete", { ids }),
   bulkUpload: (customerSellCode: string, body: FormData) =>
-    apiPostForm<ApiEnvelope<string>>(
+    apiPostForm<ApiEnvelope<BulkUploadJob>>(
       `/api/${encodeURIComponent(customerSellCode)}/bulk-upload`,
       body,
     ),
+  bulkUploadStatus: (jobId: string) =>
+    apiGet<ApiEnvelope<BulkUploadJob>>(`/api/bulk-upload/${encodeURIComponent(jobId)}`),
 };

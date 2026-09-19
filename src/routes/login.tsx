@@ -43,11 +43,26 @@ function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen bg-surface lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
-      <section className="hidden bg-navy px-10 py-8 text-navy-foreground lg:flex lg:flex-col">
-        <Logo />
-        <div className="mt-auto max-w-md">
-          <div className="text-sm font-medium uppercase tracking-[0.18em] text-primary">
+    <main className="relative grid min-h-screen overflow-hidden bg-surface lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
+      <img
+        src="/login-image.png"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover lg:hidden"
+      />
+      <div className="absolute inset-0 bg-navy/65 lg:hidden" />
+
+      <section className="relative hidden overflow-hidden bg-navy px-10 py-8 text-navy-foreground lg:flex lg:flex-col">
+        <img
+          src="/login-image.png"
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-navy/65" />
+        <div className="relative z-10">
+          <Logo />
+        </div>
+        <div className="relative z-10 mt-auto max-w-md">
+          <div className="text-sm font-medium uppercase tracking-[0.18em] text-navy-foreground">
             Approval operations
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white">
@@ -59,7 +74,7 @@ function LoginPage() {
         </div>
       </section>
 
-      <section className="flex items-center justify-center px-4 py-10 sm:px-6">
+      <section className="relative z-10 flex items-center justify-center px-4 py-10 sm:px-6">
         <div className="w-full max-w-[420px] rounded-lg border border-border bg-card p-6 shadow-sm">
           <div className="mb-6 lg:hidden">
             <Logo />

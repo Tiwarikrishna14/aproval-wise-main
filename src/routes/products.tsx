@@ -1,10 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   FileSpreadsheet,
   ImageIcon,
+  LoaderCircle,
   Pencil,
   Plus,
   Trash2,
@@ -47,6 +55,7 @@ import {
   businessCustomersApi,
   type BranchResponse,
   type BusinessCustomerResponse,
+  type BulkUploadJob,
   type PageResponse,
   organizationsApi,
   type ProductForm,
@@ -54,7 +63,7 @@ import {
   productRecords,
   productsApi,
 } from "@/services/admin-api.service";
-import { getApiAssetUrl } from "@/services/api-client";
+import { ApiRequestError, getApiAssetUrl } from "@/services/api-client";
 
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -103,6 +112,29 @@ type FormMessage = {
   tone: "success" | "destructive";
   text: string;
 };
+
+const bulkUploadSessionKey = "stockflow-active-bulk-upload";
+const bulkUploadPollIntervalMs = 2500;
+
+function bulkUploadErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 400) return error.message;
+    if (error.status === 401) return "Your session has expired. Please sign in again.";
+    if (error.status === 403) return "You do not have permission to upload products.";
+    if (error.status === 404) return "Upload job not found.";
+    if (error.status >= 500) return "A server error prevented the bulk upload from completing.";
+  }
+
+  return error instanceof Error ? error.message : "Bulk upload failed.";
+}
+
+function formatEstimatedTime(seconds: number | null) {
+  if (seconds == null) return "Calculating remaining time...";
+  if (seconds < 60) return `About ${seconds}s remaining`;
+
+  const minutes = Math.ceil(seconds / 60);
+  return `About ${minutes} min remaining`;
+}
 
 type ProductEditorForm = ProductForm & {
   status: string;
@@ -780,6 +812,8 @@ function ProductsPage() {
   const [bulkImageInputKey, setBulkImageInputKey] = useState(0);
   const [bulkError, setBulkError] = useState("");
   const [bulkMessage, setBulkMessage] = useState<FormMessage | null>(null);
+  const [bulkUploadJob, setBulkUploadJob] = useState<BulkUploadJob | null>(null);
+  const bulkUploadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [productPage, setProductPage] = useState(0);
   const [productPageSize, setProductPageSize] = useState(10);
   const [selectedProducts, setSelectedProducts] = useState<Record<string, ProductResponse>>({});
@@ -1039,30 +1073,108 @@ function ProductsPage() {
     }) => {
       const data = new FormData();
       data.set("file", file);
-      images.forEach((image) => data.append("images", image));
+      images.forEach((image) => data.append("images[]", image, image.name));
 
       return productsApi.bulkUpload(customerSellCode, data);
     },
 
-    onSuccess: async () => {
-      setBulkMessage({
-        tone: "success",
-        text: "Bulk product upload completed successfully.",
-      });
-      resetBulkUploadForm();
+    onSuccess: (response, variables) => {
+      const job = response.data;
+      setBulkError("");
+      setBulkUploadJob(job);
 
-      await queryClient.invalidateQueries({
-        queryKey: ["admin", "product-list"],
-      });
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(
+          bulkUploadSessionKey,
+          JSON.stringify({ jobId: job.jobId, customerSellCode: variables.customerSellCode }),
+        );
+      }
     },
 
     onError: (error) => {
-      setBulkMessage({
-        tone: "destructive",
-        text: error instanceof Error ? error.message : "Bulk upload failed.",
-      });
+      setBulkMessage({ tone: "destructive", text: bulkUploadErrorMessage(error) });
     },
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(bulkUploadSessionKey) ?? "null") as
+        | { jobId?: string; customerSellCode?: string }
+        | null;
+
+      if (stored?.jobId) {
+        if (isSa && stored.customerSellCode) setBulkCustomerSellCode(stored.customerSellCode);
+        setBulkUploadJob({
+          jobId: stored.jobId,
+          status: "QUEUED",
+          totalProducts: 0,
+          processedProducts: 0,
+          failedProducts: 0,
+          progressPercent: 0,
+          estimatedSecondsRemaining: null,
+          message: "Checking upload status...",
+        });
+      }
+    } catch {
+      window.sessionStorage.removeItem(bulkUploadSessionKey);
+    }
+  }, [isSa]);
+
+  useEffect(() => {
+    if (!bulkUploadJob?.jobId) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = await productsApi.bulkUploadStatus(bulkUploadJob.jobId);
+        if (cancelled) return;
+
+        const job = response.data;
+        setBulkUploadJob(job);
+
+        if (job.status === "COMPLETED" || job.status === "FAILED") {
+          window.sessionStorage.removeItem(bulkUploadSessionKey);
+          setBulkUploadJob(null);
+
+          if (job.status === "COMPLETED") {
+            setBulkMessage({
+              tone: "success",
+              text: `Products uploaded successfully. ${job.processedProducts} products processed.`,
+            });
+            resetBulkUploadForm();
+            await queryClient.invalidateQueries({ queryKey: ["admin", "product-list"] });
+          } else {
+            setBulkMessage({
+              tone: "destructive",
+              text: job.message || "Bulk upload failed.",
+            });
+          }
+
+          return;
+        }
+
+        bulkUploadTimerRef.current = setTimeout(poll, bulkUploadPollIntervalMs);
+      } catch (error) {
+        if (cancelled) return;
+
+        window.sessionStorage.removeItem(bulkUploadSessionKey);
+        setBulkUploadJob(null);
+        setBulkMessage({ tone: "destructive", text: bulkUploadErrorMessage(error) });
+      }
+    };
+
+    if (bulkUploadTimerRef.current) clearTimeout(bulkUploadTimerRef.current);
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (bulkUploadTimerRef.current) clearTimeout(bulkUploadTimerRef.current);
+      bulkUploadTimerRef.current = null;
+    };
+  }, [bulkUploadJob?.jobId, queryClient]);
 
   const updateProduct = useMutation({
     mutationFn: ({
@@ -1854,10 +1966,42 @@ function ProductsPage() {
 
             {bulkMessage ? <FormMessageBanner message={bulkMessage} /> : null}
 
+            {bulkUploadJob ? (
+              <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-2 font-medium text-foreground">
+                    <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                    {bulkUploadJob.status === "QUEUED" ? "Upload queued" : "Uploading products..."}
+                  </div>
+                  <span className="font-semibold text-primary">
+                    {Math.max(0, Math.min(100, bulkUploadJob.progressPercent))}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-primary/15">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, bulkUploadJob.progressPercent))}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Processed {bulkUploadJob.processedProducts} of {bulkUploadJob.totalProducts} products
+                  </span>
+                  <span>{formatEstimatedTime(bulkUploadJob.estimatedSecondsRemaining)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{bulkUploadJob.message}</p>
+              </div>
+            ) : null}
+
             <div className="flex justify-end">
-              <Button type="submit" disabled={bulkUpload.isPending || (!isSa && !customerSellCode)}>
+              <Button
+                type="submit"
+                disabled={bulkUpload.isPending || Boolean(bulkUploadJob) || (!isSa && !customerSellCode)}
+              >
                 <Upload className="mr-1.5 h-4 w-4" />
-                {bulkUpload.isPending ? "Uploading..." : "Upload Products"}
+                {bulkUpload.isPending || bulkUploadJob ? "Upload in progress..." : "Upload Products"}
               </Button>
             </div>
           </form>

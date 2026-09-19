@@ -18,6 +18,16 @@ type BackendEnvelope = {
   message?: unknown;
 };
 
+export class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 
 function getCookie(name: string) {
@@ -241,7 +251,7 @@ async function apiRequest<T>(path: string, init?: RequestInit, canRefresh = true
       // Keep the generic status message when the response is not JSON.
     }
 
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status);
   }
 
   if (response.status === 204) return undefined as T;
