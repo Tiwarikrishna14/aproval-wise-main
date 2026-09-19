@@ -63,7 +63,7 @@ import {
   productRecords,
   productsApi,
 } from "@/services/admin-api.service";
-import { ApiRequestError, getApiAssetUrl } from "@/services/api-client";
+import { ApiError, getApiAssetUrl } from "@/services/api-client";
 
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -117,12 +117,12 @@ const bulkUploadSessionKey = "stockflow-active-bulk-upload";
 const bulkUploadPollIntervalMs = 2500;
 
 function bulkUploadErrorMessage(error: unknown) {
-  if (error instanceof ApiRequestError) {
-    if (error.status === 400) return error.message;
-    if (error.status === 401) return "Your session has expired. Please sign in again.";
-    if (error.status === 403) return "You do not have permission to upload products.";
-    if (error.status === 404) return "Upload job not found.";
-    if (error.status >= 500) return "A server error prevented the bulk upload from completing.";
+  if (error instanceof ApiError) {
+    if (error.response.status === 400) return error.response.data as string;
+    if (error.response.status === 401) return "Your session has expired. Please sign in again.";
+    if (error.response.status === 403) return "You do not have permission to upload products.";
+    if (error.response.status === 404) return "Upload job not found.";
+    if (error.response.status >= 500) return "A server error prevented the bulk upload from completing.";
   }
 
   return error instanceof Error ? error.message : "Bulk upload failed.";
