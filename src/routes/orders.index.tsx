@@ -5,6 +5,7 @@ import { useState } from "react";
 import { TableLoadingRows, TableMessageRow } from "@/components/data-state";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import { TableFilters } from "@/components/table-filters";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
@@ -97,7 +98,7 @@ function OrdersPage() {
       />
 
       <div className="rounded-xl border border-border bg-card">
-        <div className="grid gap-3 border-b border-border p-4 md:grid-cols-[1fr_220px_auto]">
+        <TableFilters className="md:grid-cols-[1fr_220px_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -125,7 +126,7 @@ function OrdersPage() {
           <Button type="button" variant="outline" size="sm" onClick={applySearch}>
             Apply
           </Button>
-        </div>
+        </TableFilters>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -137,22 +138,21 @@ function OrdersPage() {
                 <th className="px-4 py-3 text-left font-medium">Created</th>
                 <th className="px-4 py-3 text-right font-medium">Products</th>
                 <th className="px-4 py-3 text-right font-medium">Amount</th>
-                <th className="px-4 py-3 text-left font-medium">Priority</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {ordersQuery.isLoading ? (
-                <TableLoadingRows columns={9} />
+                <TableLoadingRows columns={8} />
               ) : ordersQuery.isError ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-destructive">
+                  <td colSpan={8} className="px-4 py-10 text-center text-destructive">
                     Failed to load orders: {ordersQuery.error.message}
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
-                <TableMessageRow columns={9} message="No orders returned  ." />
+                <TableMessageRow columns={8} message="No orders returned  ." />
               ) : (
                 orders.map((order) => <OrderRow key={order.id} order={order} />)
               )}
@@ -240,7 +240,6 @@ function OrderRow({ order }: { order: OrderResponse }) {
       <td className="px-4 py-3 text-right tabular-nums font-medium">
         {formatMoney(order.totalAmount)}
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{order.priority || "-"}</td>
       <td className="px-4 py-3">
         {order.status ? <StatusBadge status={formatStatus(order.status)} /> : "-"}
       </td>

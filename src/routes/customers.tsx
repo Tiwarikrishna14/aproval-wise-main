@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowRightLeft, MapPin, Pencil, Plus, Power, Search, X } from "lucide-react";
+import { ArrowRightLeft, MapPin, Pencil, Plus, Power, Search } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { DeactivateDialog } from "@/components/deactivate-dialog";
 import { BusinessCustomerLocationsDialog } from "@/components/business-customer-locations-dialog";
+import { BranchSelect, OrganizationSelect } from "@/components/entity-select";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import { TableFilterActions, TableFilters } from "@/components/table-filters";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -247,25 +249,7 @@ function CustomersPage() {
     retry: false,
     staleTime: 60 * 1000,
   });
-  const transferBranchesQuery = useQuery({
-    queryKey: ["admin", "business-customers", "transfer-branches", transferTarget?.organizationId],
-    queryFn: async () =>
-      branchRecords(
-        (
-          await branchesApi.list({
-            organizationId: transferTarget?.organizationId,
-            size: 100,
-          })
-        ).data,
-      ),
-    enabled: Boolean(transferTarget?.organizationId),
-    retry: false,
-  });
-
   const branches = branchRecords(branchesQuery.data);
-  const organizations = (organizationsQuery.data ?? []).filter(
-    (organization) => organization.organizationType === "PARENT",
-  );
   const organizationsById = new Map(
     (organizationsQuery.data ?? []).map((organization) => [organization.id, organization.name]),
   );
@@ -542,7 +526,7 @@ function CustomersPage() {
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card">
-          <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
+          <TableFilters className="2xl:grid-cols-7">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -557,36 +541,24 @@ function CustomersPage() {
             </div>
 
             {isSa ? (
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              <OrganizationSelect
                 value={organizationId}
-                onChange={(event) => changeOrganization(event.target.value)}
+                onValueChange={changeOrganization}
+                emptyLabel="All organizations"
+                organizationTypes={["PARENT"]}
                 aria-label="Organization filter"
-              >
-                <option value="">All organizations</option>
-                {organizations.map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name} ({organization.organizationCode})
-                  </option>
-                ))}
-              </select>
+              />
             ) : null}
 
             {canChooseCustomerBranch ? (
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              <BranchSelect
                 value={branchId}
-                onChange={(event) => changeBranch(event.target.value)}
+                onValueChange={changeBranch}
+                organizationId={organizationId || undefined}
+                emptyLabel="All branches"
                 disabled={!organizationId && !isSa}
                 aria-label="Branch filter"
-              >
-                <option value="">All branches</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name} ({branch.city || "Branch"})
-                  </option>
-                ))}
-              </select>
+              />
             ) : null}
 
             <Input
@@ -613,15 +585,8 @@ function CustomersPage() {
               <option value="INACTIVE">INACTIVE</option>
             </select>
 
-            <Button type="button" variant="outline" onClick={applyFilters}>
-              <Search className="mr-1.5 h-4 w-4" />
-              Apply
-            </Button>
-            <Button type="button" variant="ghost" onClick={resetFilters}>
-              <X className="mr-1.5 h-4 w-4" />
-              Reset
-            </Button>
-          </div>
+            <TableFilterActions onApply={applyFilters} onReset={resetFilters} />
+          </TableFilters>
 
           <div className="overflow-x-auto overscroll-x-contain">
             <table className="w-full min-w-[1400px] table-fixed text-sm">
@@ -835,39 +800,26 @@ function CustomersPage() {
           <form className="space-y-4" onSubmit={submit}>
             {isSa ? (
               <Field label="Organization" id="create-customer-organization">
-                <select
+                <OrganizationSelect
                   id="create-customer-organization"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={organizationId}
-                  onChange={(event) => changeOrganization(event.target.value)}
+                  onValueChange={changeOrganization}
+                  organizationTypes={["PARENT"]}
                   required
-                >
-                  <option value="">Select organization</option>
-                  {organizations.map((organization) => (
-                    <option key={organization.id} value={organization.id}>
-                      {organization.name} ({organization.organizationCode})
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
             ) : null}
             {canChooseCustomerBranch ? (
               <Field label="Managing Branch" id="create-customer-branch">
-                <select
+                <BranchSelect
                   id="create-customer-branch"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={branchId}
-                  onChange={(event) => changeBranch(event.target.value)}
+                  onValueChange={changeBranch}
+                  organizationId={organizationId || undefined}
+                  enabled={Boolean(organizationId)}
                   disabled={!organizationId || branchesQuery.isLoading}
                   required
-                >
-                  <option value="">Select branch</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name} ({branch.city || "Branch"})
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
             ) : null}
             <CustomerFields
@@ -953,28 +905,18 @@ function CustomersPage() {
             </DialogDescription>
           </DialogHeader>
           <Field label="Target Branch" id="transfer-target-branch">
-            <select
+            <BranchSelect
               id="transfer-target-branch"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               value={targetBranchId}
-              onChange={(event) => setTargetBranchId(event.target.value)}
-              disabled={transferBranchesQuery.isLoading || transferCustomer.isPending}
-            >
-              <option value="">Select an active branch</option>
-              {(transferBranchesQuery.data ?? [])
-                .filter(
-                  (branch) => branch.status === "ACTIVE" && branch.id !== transferTarget?.branchId,
-                )
-                .map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name} ({branch.branchCode})
-                  </option>
-                ))}
-            </select>
+              onValueChange={setTargetBranchId}
+              organizationId={transferTarget?.organizationId}
+              enabled={Boolean(transferTarget?.organizationId)}
+              activeOnly
+              excludeBranchId={transferTarget?.branchId}
+              disabled={transferCustomer.isPending}
+              emptyLabel="Select an active branch"
+            />
           </Field>
-          {transferBranchesQuery.isError ? (
-            <InlineError message="Could not load target branches." />
-          ) : null}
           {transferCustomer.isError ? (
             <InlineError message={transferCustomer.error.message} />
           ) : null}

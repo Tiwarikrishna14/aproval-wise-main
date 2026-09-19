@@ -192,7 +192,6 @@ function OrderDetail() {
                     : order.location
                 }
               />
-              <Meta k="Priority" v={order.priority} />
               <Meta k="Expected" v={formatDate(order.expectedDeliveryDate)} />
               <Meta k="Total" v={formatMoney(order.totalAmount)} />
               <Meta k="Version" v={order.version} />
@@ -232,7 +231,6 @@ function OrderDetail() {
 
             <TabsContent value="summary" className="p-6">
               <div className="grid gap-5 sm:grid-cols-2">
-                <SummaryBlock title="Notes" value={order.notes} />
                 <SummaryBlock title="Remarks" value={order.remarks} />
               </div>
               <OrderLocationDetails order={order} />

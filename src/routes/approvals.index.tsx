@@ -89,16 +89,15 @@ function ApprovalsPage() {
                   <th className="px-4 py-3 text-left font-medium">Customer</th>
                   <th className="px-4 py-3 text-right font-medium">Products</th>
                   <th className="px-4 py-3 text-right font-medium">Amount</th>
-                  <th className="px-4 py-3 text-left font-medium">Priority</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {ordersQuery.isLoading ? (
-                  <TableLoadingRows columns={7} />
+                  <TableLoadingRows columns={6} />
                 ) : orders.length === 0 ? (
-                  <TableMessageRow columns={7} message="No approval orders returned  ." />
+                  <TableMessageRow columns={6} message="No approval orders returned  ." />
                 ) : (
                   orders.map((order) => <ApprovalOrderRow key={order.id} order={order} />)
                 )}
@@ -177,7 +176,6 @@ function ApprovalOrderRow({ order }: { order: OrderResponse }) {
       <td className="px-4 py-3 text-right font-medium tabular-nums">
         {formatMoney(order.totalAmount)}
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{order.priority || "-"}</td>
       <td className="px-4 py-3">
         {order.status ? <StatusBadge status={formatStatus(order.status)} /> : "-"}
       </td>

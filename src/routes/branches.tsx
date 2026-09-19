@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { DeactivateDialog } from "@/components/deactivate-dialog";
+import { OrganizationSelect } from "@/components/entity-select";
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -34,7 +35,6 @@ import { ApiError } from "@/services/api-client";
 import {
   branchRecords,
   branchesApi,
-  organizationsApi,
   type BranchResponse,
   type CreateBranchRequest,
   type PageResponse,
@@ -78,13 +78,6 @@ function BranchesPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<BranchResponse | null>(null);
   const [reactivateOpen, setReactivateOpen] = useState(false);
 
-  const organizationsQuery = useQuery({
-    queryKey: ["admin", "branches", "organizations"],
-    queryFn: async () => (await organizationsApi.list({ size: 100 })).data.content,
-    enabled: isSa,
-    retry: false,
-    staleTime: 60_000,
-  });
   const branchesQuery = useQuery({
     queryKey: [...queryKey, organizationId, page, size],
     queryFn: async () =>
@@ -247,22 +240,14 @@ function BranchesPage() {
       {isSa ? (
         <div className="max-w-sm space-y-2">
           <Label htmlFor="branch-organization">Organization</Label>
-          <select
+          <OrganizationSelect
             id="branch-organization"
-            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             value={organizationId}
-            onChange={(e) => {
-              setOrganizationId(e.target.value);
+            onValueChange={(value) => {
+              setOrganizationId(value);
               setPage(0);
             }}
-          >
-            <option value="">Select organization</option>
-            {(organizationsQuery.data ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} ({item.organizationCode})
-              </option>
-            ))}
-          </select>
+          />
         </div>
       ) : null}
       {isSa && !organizationId ? (

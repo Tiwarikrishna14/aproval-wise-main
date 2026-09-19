@@ -44,9 +44,7 @@ type ProductRow = {
 };
 
 type OrderFormState = {
-  notes: string;
   remarks: string;
-  priority: string;
   location: string;
   referenceNumber: string;
 };
@@ -60,8 +58,6 @@ type OrderFormProps = {
   onSubmit: (payload: OrderMutationRequest) => void;
   onCancel?: () => void;
 };
-
-const priorities = ["", "LOW", "MEDIUM", "HIGH", "URGENT"];
 
 function initialProductRows(order?: OrderResponse | null): ProductRow[] {
   return orderItems(order)
@@ -157,9 +153,7 @@ export function OrderForm({
     initialOrder?.businessCustomerCode || authCustomerSellCode,
   );
   const [form, setForm] = useState<OrderFormState>({
-    notes: initialOrder?.notes ?? "",
     remarks: initialOrder?.remarks ?? "",
-    priority: initialOrder?.priority ?? "MEDIUM",
     location: initialOrder?.location ?? "",
     referenceNumber: initialOrder?.referenceNumber ?? "",
   });
@@ -429,9 +423,7 @@ export function OrderForm({
     // }
 
     onSubmit({
-      notes: form.notes.trim(),
       remarks: form.remarks.trim(),
-      priority: form.priority.trim(),
       location: selectedLocationId ? undefined : form.location.trim(),
       businessCustomerLocationId: selectedLocationId || undefined,
       referenceNumber: form.referenceNumber.trim(),
@@ -487,20 +479,6 @@ export function OrderForm({
             placeholder="Optional reference"
           />
         </Field>
-        <Field label="Priority" id="order-priority">
-          <select
-            id="order-priority"
-            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            value={form.priority}
-            onChange={(event) => updateField("priority", event.target.value)}
-          >
-            {priorities.map((priority) => (
-              <option key={priority} value={priority}>
-                {priority || "Select priority"}
-              </option>
-            ))}
-          </select>
-        </Field>
         {!assignedBusinessCustomerId && !authCustomerSellCode ? (
           <Field label="Product Customer Sell Code" id="order-customer-code">
             <select
@@ -522,14 +500,6 @@ export function OrderForm({
             </select>
           </Field>
         ) : null}
-        <Field label="Notes" id="order-notes" className="sm:col-span-2">
-          <textarea
-            id="order-notes"
-            className="input min-h-[80px]"
-            value={form.notes}
-            onChange={(event) => updateField("notes", event.target.value)}
-          />
-        </Field>
         <Field label="Remarks" id="order-remarks" className="sm:col-span-2">
           <textarea
             id="order-remarks"

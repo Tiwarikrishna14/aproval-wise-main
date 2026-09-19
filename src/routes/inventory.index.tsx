@@ -15,6 +15,7 @@ import { useState } from "react";
 import { DataError, TableLoadingRows, TableMessageRow } from "@/components/data-state";
 import { MetricCard, PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
+import { TableFilters } from "@/components/table-filters";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -83,7 +84,7 @@ function InventoryPage() {
               </TabsList>
             </div>
 
-            <div className="grid gap-3 border-b border-border p-4 md:grid-cols-[1fr_auto_auto_auto]">
+            <TableFilters className="md:grid-cols-[1fr_auto_auto_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -101,7 +102,7 @@ function InventoryPage() {
               <Button variant="outline" size="sm" disabled>
                 Threshold
               </Button>
-            </div>
+            </TableFilters>
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

@@ -5,7 +5,9 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-parts";
+import { BranchSelect, OrganizationSelect } from "@/components/entity-select";
 import { StatusBadge } from "@/components/status-badge";
+import { TableFilterActions, TableFilters } from "@/components/table-filters";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -796,7 +798,7 @@ function UsersPage() {
         </div>
       ) : hasViewAccess ? (
         <div className="rounded-xl border border-border bg-card">
-          <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
+          <TableFilters className="2xl:grid-cols-7">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -813,23 +815,14 @@ function UsersPage() {
             {isBranchScopedCreator ? (
               <Input value={branchLabel(assignedBranchId)} readOnly aria-label="Branch filter" />
             ) : (
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              <BranchSelect
                 value={branchFilter}
-                onChange={(event) => updateBranchFilter(event.target.value)}
+                onValueChange={updateBranchFilter}
+                organizationId={selectedCreateOrganizationId || undefined}
+                emptyLabel="All branches"
                 disabled={branchesQuery.isLoading}
                 aria-label="Branch filter"
-              >
-                <option value="">
-                  {branchesQuery.isLoading ? "Loading branches..." : "All branches"}
-                </option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                    {branch.branchCode ? ` (${branch.branchCode})` : ""}
-                  </option>
-                ))}
-              </select>
+              />
             )}
 
             <select
@@ -881,15 +874,8 @@ function UsersPage() {
               </select>
             ) : null}
 
-            <Button type="button" variant="outline" onClick={applyUserFilters}>
-              <Search className="mr-1.5 h-4 w-4" />
-              Apply
-            </Button>
-            <Button type="button" variant="ghost" onClick={resetUserFilters}>
-              <X className="mr-1.5 h-4 w-4" />
-              Reset
-            </Button>
-          </div>
+            <TableFilterActions onApply={applyUserFilters} onReset={resetUserFilters} />
+          </TableFilters>
 
           <div className="overflow-x-auto overscroll-x-contain">
             <table className="w-full min-w-[1100px] table-fixed text-sm">
@@ -1079,27 +1065,20 @@ function UsersPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Organization" htmlFor="user-organization">
                 {isSa ? (
-                  <select
+                  <OrganizationSelect
                     id="user-organization"
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                     value={form.organizationId}
-                    onChange={(event) => {
+                    onValueChange={(value) => {
                       setForm((current) => ({
                         ...current,
-                        organizationId: event.target.value,
+                        organizationId: value,
                         branchId: "",
                         businessCustomerId: "",
                         roleIds: [],
                       }));
                     }}
-                  >
-                    <option value="">Use backend default</option>
-                    {organizations.map((organization) => (
-                      <option key={organization.id} value={organization.id}>
-                        {organization.name} ({organization.organizationType})
-                      </option>
-                    ))}
-                  </select>
+                    emptyLabel="Use backend default"
+                  />
                 ) : (
                   <Input
                     id="user-organization"
@@ -1142,24 +1121,16 @@ function UsersPage() {
                       required={isEmployeeBranchRequired}
                     />
                   ) : (
-                    <select
+                    <BranchSelect
                       id="user-branch"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                       value={form.branchId}
-                      onChange={(event) => updateField("branchId", event.target.value)}
+                      onValueChange={(value) => updateField("branchId", value)}
+                      organizationId={selectedCreateOrganizationId || undefined}
+                      enabled={Boolean(selectedCreateOrganizationId)}
                       disabled={!selectedCreateOrganizationId || branchesQuery.isLoading}
                       required={isEmployeeBranchRequired}
-                    >
-                      <option value="">
-                        {isEmployeeBranchRequired ? "Select branch" : "Organization-wide"}
-                      </option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                          {branch.branchCode ? ` (${branch.branchCode})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                      emptyLabel={isEmployeeBranchRequired ? "Select branch" : "Organization-wide"}
+                    />
                   )}
                   <p className="text-xs text-muted-foreground">Required for employee users.</p>
                   {branchesQuery.isError && !isBranchScopedCreator ? (

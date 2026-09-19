@@ -93,9 +93,7 @@ export type OrderProductRequest = {
 };
 
 export type OrderMutationRequest = {
-  notes?: string;
   remarks?: string;
-  priority?: string;
   location?: string;
   businessCustomerLocationId?: string;
   locationCode?: string;

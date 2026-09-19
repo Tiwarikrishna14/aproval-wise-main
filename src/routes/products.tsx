@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { DataError, TableLoadingRows, TableMessageRow } from "@/components/data-state";
+import { BranchSelect, OrganizationSelect } from "@/components/entity-select";
 
 import { PageHeader } from "@/components/page-parts";
 import { StatusBadge } from "@/components/status-badge";
@@ -57,7 +58,6 @@ import {
   type BusinessCustomerResponse,
   type BulkUploadJob,
   type PageResponse,
-  organizationsApi,
   type ProductForm,
   type ProductResponse,
   productRecords,
@@ -122,7 +122,8 @@ function bulkUploadErrorMessage(error: unknown) {
     if (error.response.status === 401) return "Your session has expired. Please sign in again.";
     if (error.response.status === 403) return "You do not have permission to upload products.";
     if (error.response.status === 404) return "Upload job not found.";
-    if (error.response.status >= 500) return "A server error prevented the bulk upload from completing.";
+    if (error.response.status >= 500)
+      return "A server error prevented the bulk upload from completing.";
   }
 
   return error instanceof Error ? error.message : "Bulk upload failed.";
@@ -823,29 +824,6 @@ function ProductsPage() {
 
   /*
    * ============================================================
-   * ORGANIZATIONS
-   *
-   * Only Super Admin needs this dropdown.
-   * ============================================================
-   */
-
-  const organizationsQuery = useQuery({
-    queryKey: ["admin", "branches", "organizations"],
-
-    queryFn: async () =>
-      (await organizationsApi.list({ size: 100 })).data.content.filter(
-        (item) => item.organizationType === "PARENT",
-      ),
-
-    enabled: isSa,
-
-    retry: false,
-
-    staleTime: 60 * 1000,
-  });
-
-  /*
-   * ============================================================
    * BRANCHES
    *
    * Organization + Branch are used only to fetch customers
@@ -1100,9 +1078,10 @@ function ProductsPage() {
     if (typeof window === "undefined") return;
 
     try {
-      const stored = JSON.parse(window.sessionStorage.getItem(bulkUploadSessionKey) ?? "null") as
-        | { jobId?: string; customerSellCode?: string }
-        | null;
+      const stored = JSON.parse(window.sessionStorage.getItem(bulkUploadSessionKey) ?? "null") as {
+        jobId?: string;
+        customerSellCode?: string;
+      } | null;
 
       if (stored?.jobId) {
         if (isSa && stored.customerSellCode) setBulkCustomerSellCode(stored.customerSellCode);
@@ -1745,20 +1724,12 @@ function ProductsPage() {
               <div className="space-y-2">
                 <Label htmlFor="customer-organization">Parent Organization</Label>
 
-                <select
+                <OrganizationSelect
                   id="customer-organization"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={organizationId}
-                  onChange={(event) => handleOrganizationChange(event.target.value)}
-                >
-                  <option value="">Select organization</option>
-
-                  {(organizationsQuery.data ?? []).map((organization) => (
-                    <option key={organization.id} value={organization.id}>
-                      {organization.name} ({organization.organizationCode})
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={handleOrganizationChange}
+                  organizationTypes={["PARENT"]}
+                />
               </div>
             )}
 
@@ -1771,22 +1742,14 @@ function ProductsPage() {
               <div className="space-y-2">
                 <Label htmlFor="customer-branch">Branch</Label>
 
-                <select
+                <BranchSelect
                   id="customer-branch"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={branchId}
-                  onChange={(event) => handleBranchChange(event.target.value)}
+                  onValueChange={handleBranchChange}
+                  organizationId={organizationId || undefined}
+                  enabled={Boolean(organizationId)}
                   disabled={!organizationId}
-                >
-                  <option value="">Select branch</option>
-
-                  {branches.map((branch: BranchResponse) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                      {branch.branchCode ? ` (${branch.branchCode})` : ""}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             )}
 
@@ -1987,7 +1950,8 @@ function ProductsPage() {
                 </div>
                 <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                   <span>
-                    Processed {bulkUploadJob.processedProducts} of {bulkUploadJob.totalProducts} products
+                    Processed {bulkUploadJob.processedProducts} of {bulkUploadJob.totalProducts}{" "}
+                    products
                   </span>
                   <span>{formatEstimatedTime(bulkUploadJob.estimatedSecondsRemaining)}</span>
                 </div>
@@ -1998,10 +1962,14 @@ function ProductsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                disabled={bulkUpload.isPending || Boolean(bulkUploadJob) || (!isSa && !customerSellCode)}
+                disabled={
+                  bulkUpload.isPending || Boolean(bulkUploadJob) || (!isSa && !customerSellCode)
+                }
               >
                 <Upload className="mr-1.5 h-4 w-4" />
-                {bulkUpload.isPending || bulkUploadJob ? "Upload in progress..." : "Upload Products"}
+                {bulkUpload.isPending || bulkUploadJob
+                  ? "Upload in progress..."
+                  : "Upload Products"}
               </Button>
             </div>
           </form>
